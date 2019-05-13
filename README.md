@@ -6,7 +6,9 @@ any globus endpoint.
 Python 3
 ConfigMaster  (installed via manage_externals -- see instructions below)
 
-# Installing the Globus CLI, globusconnectpersonal
+# Installing
+
+## Installing the Globus CLI and globusconnectpersonal
 
 You will need these installed to start your own local endpoint.  I had SNAT install them in:
 * /opt/globusconnectpersonal-2.3.6/globusconnectpersonal
@@ -14,14 +16,14 @@ You will need these installed to start your own local endpoint.  I had SNAT inst
 
 The instructions that follow assume these two programs are in your path.
 
-# Installing the Globus Python SDK
+## Installing the Globus Python SDK
 To run GlobusArchiver.py, you will need the Globus Python SDK installed.
 
-As long as you have write permissions in your python3 environment, you can install it yourself using pip.  INstructions online are straightforward:
+As long as you have write permissions in your python3 environment, you can install it yourself using pip.  Instructions online are straightforward:
 https://globus-sdk-python.readthedocs.io/en/stable/installation/
 
 
-# Installing GlobusArchiver
+## Installing GlobusArchiver
 
 After you have cloned the GlobusArchiver repository, you can run checkout_externals to get any external dependencies:
 
@@ -42,6 +44,8 @@ https://docs.globus.org/faq/globus-connect-endpoints/#how_do_i_configure_accessi
 export LOCAL_EP_NAME=$(uname -n)
 
 globus login --no-local-server
+
+# storing this output in a log file for ease of grepping later
 globus endpoint create --personal $LOCAL_EP_NAME > local_endpoint.log
 
 # get local setup ID, and local endpoint ID
