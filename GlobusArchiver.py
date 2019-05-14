@@ -96,17 +96,17 @@ archiveDateTime = datetime.datetime.now() - datetime.timedelta(days=2)
 archiveItems = {
 "icing-cvs-data":
        {
-       "source": "/d1/prestop/backup/test1.txt",
+       "source": "/d1/prestop/backup/test1",
        "destination": "/gpfs/csfs1/ral/nral0003",
        "transfer-args": "--preserve-mtime",
-       "transfer-label": f"icing-cvs-data-{archiveDateTime.strftime('%Y%m%d')}"
+       "transfer-label": f"icing_cvs_data_{archiveDateTime.strftime('%Y%m%d')}"
        },
 "icing-cvs-data2":
        {
-       "source": "/d1/prestop/backup/test2.txt",
+       "source": "/d1/prestop/backup/test2",
        "destination": "/gpfs/csfs1/ral/nral0003",
        "transfer-args": "--preserve-mtime",
-#       "transfer-label": f"icing-cvs-data-{archiveDateTime}"
+       "transfer-label": f"icing_cvs_data_{archiveDateTime}"
        }
 }
 
@@ -388,9 +388,9 @@ def getTokens():
     local_ep = globus_sdk.LocalGlobusConnectPersonal()
     local_ep_id = local_ep.endpoint_id
 
-    print("Looking at local end point")
-    for entry in transfer.operation_ls(local_ep_id):
-        print(f"Local file: {entry['name']}")
+    #print("Looking at local end point")
+    #for entry in transfer.operation_ls(local_ep_id):
+    #    print(f"Local file: {entry['name']}")
 
 
     logging.info("BEGINNING PROCESSING OF archiveItems")
@@ -403,26 +403,25 @@ def getTokens():
             logging.error(f"{item} source: {item_info['destination']} must be absolute.  SKIPPING!")
             continue
         try:
-            transfer.operation_ls(p.opt["archiveEndPoint"], item_info["destination"])
-        except TransferAPIError as e:
+            transfer.operation_ls(p.opt["archiveEndPoint"], path=item_info["destination"])
+        except globus_sdk.exc.TransferAPIError as e:
             logging.fatal(f"Destination path ({item_info['destination']}) does not exist on archiveEndPoint.")
             logging.fatal(e)
             sys.exit(1)
 
         # get leaf dir from source, and add it to destination
-        dirname, leaf = os.path.split(user_source_path)
+        dirname, leaf = os.path.split(item_info['source'])
         if leaf == '':
             _, leaf = os.path.split(dirname)
-        destination_directory = os.path.join(user_destination_path, leaf) + '/'
-                                
+        destination_directory = os.path.join(item_info['destination'], leaf) + '/'
 
         # Check if destination_dir already exists, and skip if so
         # TODO: add support to overwrite?
         try:
             transfer.operation_ls(p.opt["archiveEndPoint"], path=destination_directory)
-            logging.error(f"Destination {destination_directory} already exists on archiveEndPoint.  SKIPPING!"}
+            logging.error(f"Destination {destination_directory} already exists on archiveEndPoint.  SKIPPING!")
             continue
-        except TransferAPIError e:
+        except globus_sdk.exc.TransferAPIError as e:
             if e.code != u'ClientError.NotFound':
                 logging.fatal(f"Can't ls {p.opt['archiveEndPoint']} : {destination_directory}")
                 logging.fatal(e)
@@ -432,7 +431,7 @@ def getTokens():
         try:
             logging.info(f"Creating destination directory {destination_directory}")
             transfer.operation_mkdir(p.opt["archiveEndPoint"], destination_directory)
-        except TransferAPIError e:
+        except globus_sdk.exc.TransferAPIError as e:
             logging.fatal(f"Can't mkdir {p.opt['archiveEndPoint']} : {destination_directory}")
             logging.fatal(e)
             sys.exit(1)
@@ -440,16 +439,18 @@ def getTokens():
         # TODO: set permissions for users to read dir
         #       look at https://github.com/globus/automation-examples/blob/master/share_data.py
 
-        tdata = globus_sdk.TransferData(transfer, local_ep, p.opt["archiveEndPoint"], label=item_info["transfer-label"])
+        #tdata = globus_sdk.TransferData(transfer, local_ep_id, p.opt["archiveEndPoint"], label=item_info["transfer-label"])
+        tdata = globus_sdk.TransferData(transfer, local_ep_id, p.opt["archiveEndPoint"])
+        tdata.add_item(item_info["source"], destination_directory, recursive=True)
         try:
             logging.info(f"Submitting transfer task - {item_info['transfer-label']}")
-            task = tc.submit_transfer(tdata)
-        except TransferAPIError as e:
+            task = transfer.submit_transfer(tdata)
+        except globus_sdk.exc.TransferAPIError as e:
             logging.fatal("Transfer task submission failed")
             logging.fatal(e)
-            sys.ext(1)
-        logging.info("Task ID: {task['task_id']}")
-        logging.info("This task can be monitored via the Web UI: https://app.globus.org/activity/{task['task_id']}")
+            sys.exit(1)
+        logging.info(f"Task ID: {task['task_id']}")
+        logging.info(f"This task can be monitored via the Web UI: https://app.globus.org/activity/{task['task_id']}")
 
 
 def main():
@@ -463,9 +464,9 @@ def main():
     #handle_configuration()
 
     
-    for item,item_info in p.opt["archiveItems"].items():
-        print(item)
-        print (item_info)
+    #for item,item_info in p.opt["archiveItems"].items():
+    #    print(item)
+    #    print (item_info)
         
     #logging.info(f"Using archiveEndPoint: {p.opt['archiveEndPoint']}")
 
