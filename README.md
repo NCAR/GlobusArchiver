@@ -71,5 +71,27 @@ First you will want to use the "print_params" argument to create a default confi
 GlobusArchiver.py --print_params > GlobusArchiver_my_project.py
 ```
 
-Now edit your configuration file.  You will likely need to edit the ...
+Now edit your configuration file.  You will likely need to edit the archive-items dictionary.
 
+Finally run GlobusArchiver.py with your configuration file.  The first time you run GlobusArchiver.py, I recommmend you run interactively from the command line, and redirect the log to a file.  You will probably get prompted to authenticate your globus account and activate with the Campaign Store endpoint.  Once you do this the first time, you should not need to do it for 6 months.  
+```
+
+```
+
+# Troubleshooting
+
+# TODO
+Note, that not all of these will necessarily get done.  (Is there a way to vote on github issues?)
+* Move these TODO's to github issues
+* Test with directories, instead of files & recursive directories, and add examples to the default param file.
+* Add summary emails
+* email user if globus authentication/activation fails
+* Check expected num files / expected file size?
+* Add relative path to transfers
+* Add ability to tar and/or zip prior to transfer
+* Add staging area in case files don't want to get TAR'd zipped in place.
+* Add ability to put multiple different targets into the same tar file.
+* Add database of meta-data?
+* Add setting of mode of files upon transfer
+* Add tar TOC creation/transfer?
+* Add force overwrite, or don't overwrite?  (what does it do now?)
