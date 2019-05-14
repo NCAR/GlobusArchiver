@@ -49,6 +49,7 @@ defaultParams = """
 # Imports used in the configuration file
 import os
 import socket
+import datetime
 
 #####################################
 ## GENERAL CONFIGURATION
@@ -82,9 +83,32 @@ archiveEndPoint = "6b5ab960-7bbf-11e8-9450-0a6d4e044368"
 # You need to protect your Refresh Tokens. 
 # They are an infinite lifetime credential to act as you.
 # Like passwords, they should only be stored in secure locations.
-# e.g. placed in a 
+# e.g. placed in a directory where only you have read/write access
 
 globusTokenFile = os.path.join(os.path.expanduser("~"),".globus-ral","refresh-tokens.json")
+
+
+# Archive files from two days ago
+archiveDateTime = datetime.datetime.now() - datetime.timedelta(days=2)
+
+
+# TODO: transfer-args are currently ignored
+archiveItems = {
+"icing-cvs-data":
+       {
+       "source": "/d1/prestop/backup/test1.txt",
+       "destination": "/gpfs/csfs1/ral/nral0003",
+       "transfer-args": "--preserve-mtime",
+       "transfer-label": f"icing-cvs-data-{archiveDateTime.strftime('%Y%m%d')}"
+       },
+"icing-cvs-data2":
+       {
+       "source": "/d1/prestop/backup/test2.txt",
+       "destination": "/gpfs/csfs1/ral/nral0003",
+       "transfer-args": "--preserve-mtime",
+#       "transfer-label": f"icing-cvs-data-{archiveDateTime}"
+       }
+}
 
 #########################
 #  GLOBUS CONFIGURATION
@@ -284,10 +308,11 @@ def do_native_app_authentication(client_id, redirect_uri,
     # return a set of tokens, organized by resource server name
     return token_response.by_resource_server
 
+
+
+# TODO - transfer and everything is happening in here.  Refactor to a different method.
 def getTokens():
 
-    
-    
     tokens = None
     try:
         # if we already have tokens, load and use them
@@ -317,7 +342,6 @@ def getTokens():
 
     transfer = globus_sdk.TransferClient(authorizer=authorizer)
 
-    # print out a directory listing from an endpoint
     myproxy_lifetime=720 #in hours.  What's the maximum?
     try:
         r = transfer.endpoint_autoactivate(p.opt["archiveEndPoint"], if_expires_in=3600)
@@ -341,9 +365,10 @@ def getTokens():
         else:
             raise ex
 
-    print("Looking at archive end point")
-    for entry in transfer.operation_ls(p.opt["archiveEndPoint"], path='/~/'):
-        print(entry['name'] + ('/' if entry['type'] == 'dir' else ''))
+    # print out a directory listing from an endpoint
+    #print("Looking at archive end point")
+    #for entry in transfer.operation_ls(p.opt["archiveEndPoint"], path='/~/'):
+    #    print(entry['name'] + ('/' if entry['type'] == 'dir' else ''))
 
     # revoke the access token that was just used to make requests against
     # the Transfer API to demonstrate that the RefreshTokenAuthorizer will
@@ -359,13 +384,72 @@ def getTokens():
     #print('\nDoing a second directory listing with a new access token:')
     #for entry in transfer.operation_ls(p.opt["archiveEndPoint"], path='/~/'):
     #    print(entry['name'] + ('/' if entry['type'] == 'dir' else ''))
-
+    
     local_ep = globus_sdk.LocalGlobusConnectPersonal()
     local_ep_id = local_ep.endpoint_id
 
     print("Looking at local end point")
     for entry in transfer.operation_ls(local_ep_id):
         print(f"Local file: {entry['name']}")
+
+
+    logging.info("BEGINNING PROCESSING OF archiveItems")
+    for item,item_info in p.opt["archiveItems"].items():
+        logging.info(f"Transferring {item}")
+        if not item_info["source"].startswith('/'):
+            logging.error(f"{item} source: {item_info['source']} must be absolute.  SKIPPING!")
+            continue
+        if not item_info["destination"].startswith('/'):
+            logging.error(f"{item} source: {item_info['destination']} must be absolute.  SKIPPING!")
+            continue
+        try:
+            transfer.operation_ls(p.opt["archiveEndPoint"], item_info["destination"])
+        except TransferAPIError as e:
+            logging.fatal(f"Destination path ({item_info['destination']}) does not exist on archiveEndPoint.")
+            logging.fatal(e)
+            sys.exit(1)
+
+        # get leaf dir from source, and add it to destination
+        dirname, leaf = os.path.split(user_source_path)
+        if leaf == '':
+            _, leaf = os.path.split(dirname)
+        destination_directory = os.path.join(user_destination_path, leaf) + '/'
+                                
+
+        # Check if destination_dir already exists, and skip if so
+        # TODO: add support to overwrite?
+        try:
+            transfer.operation_ls(p.opt["archiveEndPoint"], path=destination_directory)
+            logging.error(f"Destination {destination_directory} already exists on archiveEndPoint.  SKIPPING!"}
+            continue
+        except TransferAPIError e:
+            if e.code != u'ClientError.NotFound':
+                logging.fatal(f"Can't ls {p.opt['archiveEndPoint']} : {destination_directory}")
+                logging.fatal(e)
+                sys.exit(1)
+                
+        # create destination directory
+        try:
+            logging.info(f"Creating destination directory {destination_directory}")
+            transfer.operation_mkdir(p.opt["archiveEndPoint"], destination_directory)
+        except TransferAPIError e:
+            logging.fatal(f"Can't mkdir {p.opt['archiveEndPoint']} : {destination_directory}")
+            logging.fatal(e)
+            sys.exit(1)
+
+        # TODO: set permissions for users to read dir
+        #       look at https://github.com/globus/automation-examples/blob/master/share_data.py
+
+        tdata = globus_sdk.TransferData(transfer, local_ep, p.opt["archiveEndPoint"], label=item_info["transfer-label"])
+        try:
+            logging.info(f"Submitting transfer task - {item_info['transfer-label']}")
+            task = tc.submit_transfer(tdata)
+        except TransferAPIError as e:
+            logging.fatal("Transfer task submission failed")
+            logging.fatal(e)
+            sys.ext(1)
+        logging.info("Task ID: {task['task_id']}")
+        logging.info("This task can be monitored via the Web UI: https://app.globus.org/activity/{task['task_id']}")
 
 
 def main():
@@ -378,8 +462,14 @@ def main():
  
     #handle_configuration()
 
-    logging.info(f"Using archiveEndPoint: {p.opt['archiveEndPoint']}")
+    
+    for item,item_info in p.opt["archiveItems"].items():
+        print(item)
+        print (item_info)
+        
+    #logging.info(f"Using archiveEndPoint: {p.opt['archiveEndPoint']}")
 
+    
     
     getTokens()
 
