@@ -49,8 +49,8 @@ globus login --no-local-server
 globus endpoint create --personal $LOCAL_EP_NAME > local_endpoint.log
 
 # get local setup ID, and local endpoint ID
-export LOCAL_SETUP_ID=$(grep Setup endpoint.log | rev | cut -f1 -d' ' | rev)
-export LOCAL_EP_ID=$(globus endpoint search '$LOCAL_EP_NAME' | grep $LOCAL_EP_NAME | cut -f1 -d' ')
+export LOCAL_SETUP_ID=$(grep Setup local_endpoint.log | rev | cut -f1 -d' ' | rev)
+export LOCAL_EP_ID=$(globus endpoint search $LOCAL_EP_NAME | grep $LOCAL_EP_NAME | cut -f1 -d' ')
 
 # setup local personal endpoint
 globusconnectpersonal  -setup $LOCAL_SETUP_ID
