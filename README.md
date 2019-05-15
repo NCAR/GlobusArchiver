@@ -3,8 +3,8 @@ Python utility to archive local data via Globus (originally designed for the Cam
 any globus endpoint.
 
 ## Requires
-Python 3
-ConfigMaster  (installed via manage_externals -- see instructions below)
+* Python 3
+* ConfigMaster  (installed via manage_externals -- see instructions below)
 
 # Installing
 
