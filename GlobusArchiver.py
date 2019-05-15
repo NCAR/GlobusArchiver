@@ -69,26 +69,18 @@ emailAddress = ""
 
 archiveEndPoint = "6b5ab960-7bbf-11e8-9450-0a6d4e044368"
 
-# or if it is not defined, you can give a shell command that will produce it:
-#archiveEndPointShellCmd =  "globus endpoint search 'NCAR' --filter-owner-id 'ncar@globusid.org' | grep Campaign | cut -f1 -d' '"
 
-# The name of your local endpoint
-#import socket
-#personalEndpoint = socket.gethostname()
-
-
-# You can set a refresh token directly in a configuration file
-# You can also set an environment variable $REFRESH_TOKEN
+# The refresh token is what lets you use globus without authenticating every time.  We store it in a local file.
 # !!IMPORTANT!!!
 # You need to protect your Refresh Tokens. 
 # They are an infinite lifetime credential to act as you.
 # Like passwords, they should only be stored in secure locations.
 # e.g. placed in a directory where only you have read/write access
-
 globusTokenFile = os.path.join(os.path.expanduser("~"),".globus-ral","refresh-tokens.json")
 
 
-# Archive files from two days ago
+# This is currently being used to add a date/time to the transfer label of each archive item.  
+# In the future GlobusArchiver.py will do substitution on paths, labels, etc. using this value.
 archiveDateTime = datetime.datetime.now() - datetime.timedelta(days=2)
 
 
@@ -208,8 +200,6 @@ p.init(__doc__)
 ########################################################
 # global constants
 ########################################################
-
-# 
 CLIENT_ID = "f70debeb-31cc-40c0-8d65-d747641428b4"
 REDIRECT_URI = 'https://auth.globus.org/v2/web/auth-code'
 SCOPES = ('openid email profile '
@@ -245,15 +235,17 @@ def run_cmd(cmd):
     else:
         splitcmd = shlex.split(cmd)
         return subprocess.run(splitcmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    
+
+    # not used.
 def handle_configuration():
     if p.opt["archiveEndPoint"] == "":
-        comp_proc = run_cmd(p.opt["archiveEndPointShellCmd"])
+        #comp_proc = run_cmd(p.opt["archiveEndPointShellCmd"])
         #print(comp_proc)
         # stdout comes back as a series of octets, so decode to a normal string and strip endline
-        EP = comp_proc.stdout.decode('UTF-8').strip('\n')
-        logging.debug(f"Got EndPoint via archiveEndPointShellCmd: {EP}")
-        p.opt["archiveEndPoint"] = EP
+        #EP = comp_proc.stdout.decode('UTF-8').strip('\n')
+        #logging.debug(f"Got EndPoint via archiveEndPointShellCmd: {EP}")
+        #p.opt["archiveEndPoint"] = EP
+        logging.debug("")
 
 
 def load_tokens_from_file(filepath):
@@ -310,7 +302,7 @@ def do_native_app_authentication(client_id, redirect_uri,
 
 
 
-# TODO - transfer and everything is happening in here.  Refactor to a different method.
+# TODO - transfer and everything is happening in here.  Refactor to separate functionality into different methods.
 def getTokens():
 
     tokens = None
