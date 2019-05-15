@@ -83,7 +83,7 @@ GlobusArchiver.py --print_params > GlobusArchiver_my_project.py
 
 Now edit your configuration file.  You will likely need to edit the archive-items dictionary.
 
-Finally run GlobusArchiver.py with your configuration file.  The first time you run GlobusArchiver.py, I recommmend you run interactively from the command line, and redirect the log to a file.
+Finally run GlobusArchiver.py with your configuration file.  The first time you run GlobusArchiver.py, I recommmend you run interactively from the command line, and redirect the log to a file.  This will help keep debug and status message from obscuring prompts for authentication.
 
 ```
 GlobusArchiver.py -c GlobusArchiver_my_project.py -l MyArchive.log -d DEBUG
