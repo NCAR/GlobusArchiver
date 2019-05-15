@@ -1,10 +1,15 @@
 # GlobusArchiver
 Python utility to archive local data via Globus (originally designed for the Campaign Store), but could be used with
-any globus endpoint.
+any globus endpoint.  GlobusArchiver.py is in the [Alpha phase](https://en.wikipedia.org/wiki/Software_release_life_cycle#Alpha), and is ready for experimentation by early-adopters. A beta release is planned for the end of June.
 
 ## Requires
 * Python 3
 * ConfigMaster  (installed via manage_externals -- see instructions below)
+* A personal globus account
+
+
+# Creating a Globus Account
+You can find [instructions for creating a personal globus account on the CISL website](https://www2.cisl.ucar.edu/resources/storage-and-file-systems/globus-file-transfers).  
 
 # Installing
 
@@ -14,7 +19,7 @@ You will need these installed to start your own local endpoint.  I had SNAT inst
 * /opt/globusconnectpersonal-2.3.6/globusconnectpersonal
 * /opt/bin/globus
 
-The instructions that follow assume these two programs are in your path.
+The instructions that follow assume these two programs are in your path.  A "quickstart guide" to using Globus Connect Personal is given below, but you can also find more [information about Globus Connect Personal online](https://www.globus.org/globus-connect-personal).
 
 ## Installing the Globus Python SDK
 To run GlobusArchiver.py, you will need the Globus Python SDK installed.
@@ -35,8 +40,7 @@ To get the required dependencies, run the following:
 
 ## Configure your local accesible directories
 
-You will need to edit ~/.globusonline/lta/config-paths to configure which local directories are accessible on your personal endpoint.  Instructions online here:
-https://docs.globus.org/faq/globus-connect-endpoints/#how_do_i_configure_accessible_directories_on_globus_connect_personal_for_linux
+You will need to edit ~/.globusonline/lta/config-paths to configure which local directories are accessible via your personal endpoint.  [Details are online.](https://docs.globus.org/faq/globus-connect-endpoints/#how_do_i_configure_accessible_directories_on_globus_connect_personal_for_linux)
 
 ## Create your local endpoint
 You only need to do this once.  Once you have your local endpoint created it persists.  You can check to see if you have a global endpoint already using the globus endpoint search:
@@ -86,14 +90,12 @@ GlobusArchiver.py -c GlobusArchiver_my_project.py -l MyArchive.log -d DEBUG
 ```
 
 You will probably get prompted to both authenticate your globus account and activate with the Campaign Store endpoint.  Once you do this the first time, you should not need to do it for 6 months.
-```
-
-```
 
 # Troubleshooting
 
-# TODO
-Note, that not all of these will necessarily get done.  (Is there a way to vote on github issues?)
+# TODO / Wishlist
+Note, that not all of these will necessarily get done.
+
 * Move these TODO's to github issues
 * Test with directories, instead of files & recursive directories, and add examples to the default param file.
 * Add summary emails
