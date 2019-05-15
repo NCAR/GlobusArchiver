@@ -79,7 +79,13 @@ GlobusArchiver.py --print_params > GlobusArchiver_my_project.py
 
 Now edit your configuration file.  You will likely need to edit the archive-items dictionary.
 
-Finally run GlobusArchiver.py with your configuration file.  The first time you run GlobusArchiver.py, I recommmend you run interactively from the command line, and redirect the log to a file.  You will probably get prompted to authenticate your globus account and activate with the Campaign Store endpoint.  Once you do this the first time, you should not need to do it for 6 months.  
+Finally run GlobusArchiver.py with your configuration file.  The first time you run GlobusArchiver.py, I recommmend you run interactively from the command line, and redirect the log to a file.
+
+```
+GlobusArchiver.py -c GlobusArchiver_my_project.py -l MyArchive.log -d DEBUG
+```
+
+You will probably get prompted to both authenticate your globus account and activate with the Campaign Store endpoint.  Once you do this the first time, you should not need to do it for 6 months.
 ```
 
 ```
