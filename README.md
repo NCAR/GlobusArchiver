@@ -39,6 +39,12 @@ You will need to edit ~/.globusonline/lta/config-paths to configure which local 
 https://docs.globus.org/faq/globus-connect-endpoints/#how_do_i_configure_accessible_directories_on_globus_connect_personal_for_linux
 
 ## Create your local endpoint
+You only need to do this once.  Once you have your local endpoint created it persists.  You can check to see if you have a global endpoint already using the globus endpoint search:
+```
+globus endpoint search --filter-scope my-endpoints
+```
+
+You need to "create", "setup" and then "start" your endpoint:
 ```
 # set this to whatever you want - I am using the name of the machine I am on.
 export LOCAL_EP_NAME=$(uname -n)
