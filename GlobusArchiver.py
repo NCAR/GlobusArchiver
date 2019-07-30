@@ -22,7 +22,17 @@ import time
 import webbrowser
 import ssl
 import threading
-
+import glob
+import copy
+import enum
+import smtplib
+import email
+import pprint
+import datetime
+import socket
+import random
+import string
+import shutil
 
 ##################
 # GLOBUS IMPORTS
@@ -54,13 +64,24 @@ import datetime
 #####################################
 ## GENERAL CONFIGURATION
 #####################################
-
  
-## debug ##
+# tempDir is used for:
+#     - Staging Location for .tar Files
+# Default, $TMPDIR if it is defined, otherwise $HOME if defined, otherwise '.'.
+tempDir = os.path.join(os.getenv("TMPDIR",os.getenv("HOME",".")), "GlobusArchiver-tmp")
 
-# Email Address
-emailAddress = ""
+###############  EMAIL   ##################
+# Deliver a report to these email addresses
+# Use a list of 3-tuples  ("name", "local-part", "domain")
 
+emailAddresses = [("Paul Prestopnik", "prestop", "ucar.edu")] 
+
+# This is the email address that will be used in the "from" field
+fromEmail = emailAddresses[0];
+
+#####################################
+##  AUTHENTICATION          
+#####################################
 
 # You can define the endpoint directly  
 # This default value is the NCAR CampaignStore 
@@ -78,27 +99,63 @@ archiveEndPoint = "6b5ab960-7bbf-11e8-9450-0a6d4e044368"
 # e.g. placed in a directory where only you have read/write access
 globusTokenFile = os.path.join(os.path.expanduser("~"),".globus-ral","refresh-tokens.json")
 
+####################################
+## ARCHIVE RUN CONFIGURATION
+####################################
 
-# This is currently being used to add a date/time to the transfer label of each archive item.  
-# In the future GlobusArchiver.py will do substitution on paths, labels, etc. using this value.
-archiveDateTime = datetime.datetime.now() - datetime.timedelta(days=2)
+######################
+# Archive Date/Time
+#
+# This is used to set the date/timme of the Archive.
+# The date/time can be substituted into all archive-item strings, by using
+# standard strftime formatting.
 
+# This value is added (so use a negaative number to assign a date in the past) 
+# to now() to find the archive date/time.
+archiveDayDelta=-2
+
+# If this is set, it overrides the archiveDayDelta.  If you want to use
+# archiveDayDelta to set the Archive Date/Time, make sure this is 
+# set to an empty string.  This string must be parseable by one of the
+# format strings defined in archiveDateTimeFormats.
+archiveDateTimeString=""
+
+# You can add additional strptime
+archiveDateTimeFormats=["%Y%m%d","%Y%m%d%H","%Y-%m-%dT%H:%M:%SZ"]
+
+# You may want to keep the tmp area around for debugging
+cleanTemp = True
+
+####################################
+## ARCHIVE ITEM CONFIGURATION
+####################################
 
 # TODO: transfer-args are currently ignored
+
+# do_zip is optional, and defaults to False
+# transferLabel is optional, and defaults to the item key + "-%Y%m%d"
+# tar_filename is optional and defaults to "".  TAR is only done if tar_filename is a non-empty string
+# transferArgs is a placeholder and not yet implemented.
 archiveItems = {
 "icing-cvs-data":
        {
        "source": "/d1/prestop/backup/test1",
        "destination": "/gpfs/csfs1/ral/nral0003",
-       "transfer-args": "--preserve-mtime",
-       "transfer-label": f"icing_cvs_data_{archiveDateTime.strftime('%Y%m%d')}"
+       "transferArgs": "--preserve-mtime",
+       "transferLabel": "icing_cvs_data_%Y%m%d",
+       "doZip": False
        },
 "icing-cvs-data2":
        {
        "source": "/d1/prestop/backup/test2",
        "destination": "/gpfs/csfs1/ral/nral0003",
-       "transfer-args": "--preserve-mtime",
-       "transfer-label": f"icing_cvs_data_{archiveDateTime}"
+       "transferArgs": "--preserve-mtime",
+       "transferLabel": "icing_cvs_data_%Y%m%d",
+       "doZip": False,
+       "tarFileName": "test2.tar",
+       "cdDirTar": "/d1/prestop/backup",
+       "expectedNumFiles": 3,
+       "expectedFileSize": 1024
        }
 }
 
@@ -205,6 +262,14 @@ REDIRECT_URI = 'https://auth.globus.org/v2/web/auth-code'
 SCOPES = ('openid email profile '
           'urn:globus:auth:scope:transfer.api.globus.org:all')
 
+
+###########################
+# Global for the email
+###########################
+email_msg = email.message.EmailMessage()
+email_errors = 0
+email_warnings = 0
+
 ########################################################
 # Function definitions
 ########################################################
@@ -230,23 +295,87 @@ def run_cmd(cmd):
     # multiple separate commands is too much work right now.
     # TODO: https://stackoverflow.com/questions/13332268/how-to-use-subprocess-command-with-pipes
     # https://stackoverflow.com/questions/295459/how-do-i-use-subprocess-popen-to-connect-multiple-processes-by-pipes
-    if '|' in cmd:
-        return subprocess.run(cmd, check=True, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if '|' in cmd or ';' in cmd:
+        return subprocess.run(cmd, check=True, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding='utf-8')
     else:
         splitcmd = shlex.split(cmd)
-        return subprocess.run(splitcmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        return subprocess.run(splitcmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding = 'utf-8')
 
-    # not used.
+def parse_archive_date_time():
+
+ # Set dateTime based on archiveDayDelta
+ archive_date_time = datetime.datetime.now() + datetime.timedelta(days=p.opt["archiveDayDelta"])
+
+ # If archiveDateTimeString is set, then try to use that to set dateTime
+ if p.opt["archiveDateTimeString"]:
+     for format in p.opt["archiveDateTimeFormats"]:
+         try:
+             archive_date_time = dattime.datetime.datetime.strptime(p.opt["archiveDateTimeString"], format)
+         except ValueError:
+             continue
+        
+ return archive_date_time
+
+def add_tar_groups_info():
+    for item,item_info in p.opt["archiveItems"].items():
+        # for each tar'd item, first assume it is the last/only item in this tar file.
+        if item_info.get("tar_filename"):
+            item_info["last_tar_in_group"] = True
+            
+        # Now look at all other archive items and see if they are TARing to the same target
+        past_this_item = False
+        for item2, item_info2 in p.opt["archiveItems"].items():
+            if item == item2:
+                past_this_item = True
+                continue
+            if not item_info2.get("tar_filename"):
+                continue
+            if past_this_item and item_info["tar_filename"] == item_info2["tar_filename"]:
+                item_info["last_tar_in_group"] = False
+
+def add_transfer_label():
+    for item,item_info in p.opt["archiveItems"].items():
+        if item_info.get("transferLabel"):
+            item_info["transfer_label"] = item_info["transferLabel"]
+        else:
+            item_info["transfer_label"] = item + "_%y%m%d"
+                
+def randomword(length):
+   letters = string.ascii_lowercase
+   return ''.join(random.choice(letters) for i in range(length))                
+ 
 def handle_configuration():
-    if p.opt["archiveEndPoint"] == "":
+
+    # TODO: do some error checking for user.
+    #     i.e. no duplicate keys in archiveItems, what else?
+
+    archive_date_time = parse_archive_date_time()
+    logging.info(f"ARCHIVE DATE TIME: {archive_date_time}")
+
+    # I think we can do this.   Let's use snake_case vs. CamelCase to distinguish between
+    # values we are just storing in p.opt vs. actual config params.
+    p.opt["archive_date_time"] = archive_date_time
+
+    add_tar_groups_info()
+    add_transfer_label()
+    
+    
+    #if p.opt["archiveEndPoint"] == "":
         #comp_proc = run_cmd(p.opt["archiveEndPointShellCmd"])
         #print(comp_proc)
         # stdout comes back as a series of octets, so decode to a normal string and strip endline
         #EP = comp_proc.stdout.decode('UTF-8').strip('\n')
         #logging.debug(f"Got EndPoint via archiveEndPointShellCmd: {EP}")
         #p.opt["archiveEndPoint"] = EP
-        logging.debug("")
+        #logging.debug("")
 
+    logging.debug("After handle_configuration(), configuration looks like this:")
+    logging.debug(f"{p.opt}")
+
+
+    # add random subdir to tmp dir
+    p.opt["tempDir"] = os.path.join(p.opt["tempDir"], randomword(8))
+    
 
 def load_tokens_from_file(filepath):
     """Load a set of saved tokens."""
@@ -302,8 +431,7 @@ def do_native_app_authentication(client_id, redirect_uri,
 
 
 
-# TODO - transfer and everything is happening in here.  Refactor to separate functionality into different methods.
-def getTokens():
+def get_transfer_client():
 
     tokens = None
     try:
@@ -346,7 +474,7 @@ def getTokens():
             print("CMD LINE -- run this from your shell: ")
             print(f"globus endpoint activate --myproxy --myproxy-lifetime {myproxy_lifetime} {p.opt['archiveEndPoint']}")
             input("Press ENTER after activating the endpoint:")
-            r = tc.endpoint_autoactivate(ep_id, if_expires_in=3600)
+            r = transfer.endpoint_autoactivate(p.opt["archiveEndPoint"], if_expires_in=3600)
         
     except globus_sdk.exc.GlobusAPIError as ex:
         print("endpoint_autoactivation failed.")
@@ -356,7 +484,10 @@ def getTokens():
                      'Please delete refresh-tokens.json and try again.')
         else:
             raise ex
+    return transfer
 
+
+def do_transfers(transfer):
     # print out a directory listing from an endpoint
     #print("Looking at archive end point")
     #for entry in transfer.operation_ls(p.opt["archiveEndPoint"], path='/~/'):
@@ -377,102 +508,271 @@ def getTokens():
     #for entry in transfer.operation_ls(p.opt["archiveEndPoint"], path='/~/'):
     #    print(entry['name'] + ('/' if entry['type'] == 'dir' else ''))
     
+
+    logging.info("\nBEGINNING PROCESSING OF archiveItems")
+    for item,item_info in p.opt["archiveItems"].items():
+        logging.info(f"Transferring {item}")
+
+        ii = copy.deepcopy(item_info)
+
+        ii["source"] = p.opt["archive_date_time"].strftime(ii["source"])
+        ii["destination"] = p.opt["archive_date_time"].strftime(ii["destination"])
+        ii["transfer_label"] = p.opt["archive_date_time"].strftime(ii["transfer_label"])
+        
+        if ii.get("tarFileName"):
+            ii["tarFileName"] = p.opt["archive_date_time"].strftime(ii["tarFileName"])
+        if ii.get("cdDirTar"):
+            ii["cdDirTar"] = p.opt["archive_date_time"].strftime(ii["cdDirTar"])
+   
+        if "*" in ii["source"] or "?" in ii["source"]:  # Is there a '*' or '?' in the source?
+            logging.verbose(f"Found wildcard in source: {ii['source']}")
+            expanded_sources = glob.glob(ii['source']);
+            ii["glob"] = True
+            
+            if len(expanded_sources) == 0:
+                log_and_email(f"Source expands to zero targets: {ii['source']}).  SKIPPING!", logging.error)
+                continue
+
+            # can't handle both dirs and files in a glob
+            file_glob = False
+            dir_glob = False
+            for es in expanded_sources:
+                if os.path.isfile(es):
+                    file_glob = True
+                if os.path.isdir(es):
+                    dir_glob = True
+            if file_glob and dir_glob:
+                # TODO: Copied this from Archiver.pl Is this still true?  
+                log_and_email("glob: {ii['source']} expands to files and dirs.  Not allowed.  Skipping this archive item.", logging.error)
+                continue
+               
+            for es_ix, es in enumerate(expanded_sources):
+                ii["source"] = es
+
+                # if not last item
+                if es_ix != len(expanded_sources):
+                    ii["last_glob"] = False
+                else:
+                    ii["last_glob"] = True
+                do_transfer(transfer, ii)
+        else:
+            ii["glob"] = False
+            do_transfer(transfer, ii)
+
+
+def do_transfer(transfer, item_info):
+    if prepare_transfer(transfer, item_info):
+        # check_sizes(item_info)  -- this is done during prepare, could be refactored to here?
+        transfer_item(transfer, item_info)
+
+# recursively creates parents to make path
+def make_globus_dir(transfer, path):
+    dest_path = os.path.sep
+    for element in path.split(os.path.sep):
+        dest_path = os.path.join(dest_path,element)
+        try:
+            transfer.operation_ls(p.opt["archiveEndPoint"], dest_path)
+        except globus_sdk.exc.TransferAPIError as e:
+            transfer.operation_mkdir(dest_path)
+    
+    
+def prepare_transfer(transfer, ii):
+    
+    add_to_email(f"\nSOURCE:      {ii['source']}\n")
+    add_to_email(f"DESTINATION: {ii['destination']}\n")
+ 
+    if not ii["source"].startswith('/'):
+        log_and_email(f"{item} source: {ii['source']} must be absolute.  SKIPPING!", logging.error)
+        return False
+    if not ii["destination"].startswith('/'):
+        log_and_email(f"{item} destination: {ii['destination']} must be absolute.  SKIPPING!", logging.error)
+        return False
+
+    # Don't need this?  transfer should automatically make dirs as needed.
+    #try:
+    #    transfer.operation_ls(p.opt["archiveEndPoint"], path=ii["destination"])
+    #except globus_sdk.exc.TransferAPIError as e:
+    #    log_and_email(f"Destination path ({ii['destination']}) does not exist on archiveEndPoint. SKIPPING!",
+    #        logging.error)
+    #    try:
+    #        transfer.operation_mkdir(p.opt["archiveEndPoint"], path=ii["destination"]])
+    #    except 
+    #    
+    #    return False
+
+    if ii.get("do_zip"):
+        cmd = "gzip "
+        if os.path.isdir(ii['source']):
+            cmd += "-r "
+        cmd += "-S .gz ";  #force .gz suffix in case of differing gzip version
+        cmd += ii['source'];
+        logging.debug(f"ZIPing file via cmd: {cmd}")
+        run_cmd(cmd)
+        if os.path.isfile(ii['source']):
+            ii['source'] += ".gz"
+
+    if ii.get("tarFileName"):
+        tar_dir = os.path.join(p.opt["tempDir"], f"Item-{ii['transfer_label']}-Tar")
+        safe_mkdirs(tar_dir)
+        cmd = f"cd {tar_dir}; tar rf {ii['tarFileName']}"
+        if ii.get("cdDirTar"):
+            cmd += f" --directory {ii['cdDirTar']}"
+        cmd += f" {ii['source']}"
+        run_cmd(cmd)
+        # created the tar file, so now set the source to the tar file 
+        ii["source"]=os.path.join(tar_dir,ii["tarFileName"])
+
+        cmd = f"tar tf {ii['source']} | wc -l"
+        output = run_cmd(cmd)
+        logging.verbose(f"got output: {output}") 
+        ii["num_files"] = int(output.stdout)
+
+    ii["file_size"] = os.path.getsize(ii["source"])
+
+    if ii.get("expectedFileSize") and (not ii["glob"] or ii.get("last_glob")):
+        if ii.get("file_size"):
+            if ii["file_size"] < ii["expectedFileSize"]:        
+                log_and_email(
+                    f"file_size < expectedFileSize: {ii['file_size']} < {ii['expectedFileSize']})",
+                    logging.warning)
+        else:
+            log_and_email(
+                f"expectedFileSize given, but file_size not calculated", logging.warning)
+
+            
+
+    if ii.get("expectedNumFiles") and (not ii["glob"] or ii.get("last_glob")):
+        if ii.get("num_files"):
+            if ii["num_files"] < ii["expectedNumFiles"]:
+              
+                log_and_email(
+                    f"WARNING: num_files < expectedNumFiles: {ii['num_files']} < {ii['expectedNumFiles']})",
+                    logging.warning)
+        else:
+            log_and_email(
+                f"expectedNumFiles given, but num_files not calculated", logging.warning)
+    return True
+
+
+def add_to_email(email_str):
+        global email_msg
+        email_msg.set_content(email_msg.get_content() + email_str)
+        
+def log_and_email(msg_str, logfunc):
+        # uses global email_msg
+        logfunc(msg_str)
+        add_to_email(logfunc.__name__.upper() + ": " + msg_str)
+                                          
+          
+def transfer_item(transfer, ii):
+    logging.verbose(f"Entering transfer_item {transfer}, {ii}")
+    # get leaf dir from source, and add it to destination
+
+
+    dirname, leaf = os.path.split(ii['source'])
+    if leaf == '':
+        _, leaf = os.path.split(dirname)
+
+    # not sure if we need this?  looks like globus adds the sep for us if source is a dir
+    if os.path.isdir(ii['source']):
+        destination = os.path.join(ii['destination'], leaf) + os.path.sep
+    else:
+        destination = os.path.join(ii['destination'], leaf)
+
+    logging.debug(f"Using destination: {destination}")
+    
+    # Check if destination_dir already exists, and skip if so
+    # TODO: add support to overwrite?
+    #try:
+    #    transfer.operation_ls(p.opt["archiveEndPoint"], path=destination)
+    #    log_and_email(f"Destination {destination} already exists on archiveEndPoint.  SKIPPING!", logging.error)
+    #    return
+    #except globus_sdk.exc.TransferAPIError as e:
+    #    if e.code != u'ClientError.NotFound':
+    #        log_and_email(f"Can't ls {p.opt['archiveEndPoint']} : {destination}", logging.fatal)
+    #        logging.fatal(e)
+    #        return
+                
+    # create destination directory
+    #try:
+    #    logging.info(f"Creating destination directory {destination}")
+    #    transfer.operation_mkdir(p.opt["archiveEndPoint"], destination)
+    #except globus_sdk.exc.TransferAPIError as e:
+    #    log_and_email(f"Can't mkdir {p.opt['archiveEndPoint']} : {destination}", logging.fatal)
+    #    logging.fatal(e)
+    #    return
+
+    # TODO: set permissions for users to read dir
+    #       look at https://github.com/globus/automation-examples/blob/master/share_data.py
+
     local_ep = globus_sdk.LocalGlobusConnectPersonal()
     local_ep_id = local_ep.endpoint_id
 
     #print("Looking at local end point")
     #for entry in transfer.operation_ls(local_ep_id):
     #    print(f"Local file: {entry['name']}")
+    
+    #tdata = globus_sdk.TransferData(transfer, local_ep_id, p.opt["archiveEndPoint"], label=ii["transfer_label"])
+    tdata = globus_sdk.TransferData(transfer, local_ep_id, p.opt["archiveEndPoint"], label=ii["transfer_label"])
+    if os.path.isdir(ii['source']):
+        tdata.add_item(ii['source'], destination, recursive=True)
+    else:
+        tdata.add_item(ii['source'], destination)
+    logging.debug(f"Adding TransferData item: {ii['source']} -> {destination}") 
+    try:
+        logging.info(f"Submitting transfer task - {ii['transfer_label']}")
+        task = transfer.submit_transfer(tdata)
+    except globus_sdk.exc.TransferAPIError as e:
+        log_and_email("Transfer task submission failed", logging.fatal)
+        logging.fatal(e)
+        return
+        
+    log_and_email(f"Task ID: {task['task_id']}", logging.info)
+    log_and_email(f"This transfer can be monitored via the Web UI: https://app.globus.org/activity/{task['task_id']}", logging.info)
 
+def prepare_email_msg():
+    email_msg['From'] = email.headerregistry.Address(*p.opt["fromEmail"])
+    email_msg['Subject'] = f"GlobusArchiver - {socket.gethostname()} - {os.path.basename(p.getConfigFilePath())}"
+    to = ()
+    for em in p.opt["emailAddresses"]:
+        to += (email.headerregistry.Address(*em),)
+    email_msg['To'] = to
 
-    logging.info("BEGINNING PROCESSING OF archiveItems")
-    for item,item_info in p.opt["archiveItems"].items():
-        logging.info(f"Transferring {item}")
-        if not item_info["source"].startswith('/'):
-            logging.error(f"{item} source: {item_info['source']} must be absolute.  SKIPPING!")
-            continue
-        if not item_info["destination"].startswith('/'):
-            logging.error(f"{item} source: {item_info['destination']} must be absolute.  SKIPPING!")
-            continue
-        try:
-            transfer.operation_ls(p.opt["archiveEndPoint"], path=item_info["destination"])
-        except globus_sdk.exc.TransferAPIError as e:
-            logging.fatal(f"Destination path ({item_info['destination']}) does not exist on archiveEndPoint.")
-            logging.fatal(e)
-            sys.exit(1)
+    email_msg.set_content(f"This is a msg from GlobusArchiver.py.\n")
 
-        # get leaf dir from source, and add it to destination
-        dirname, leaf = os.path.split(item_info['source'])
-        if leaf == '':
-            _, leaf = os.path.split(dirname)
-        destination_directory = os.path.join(item_info['destination'], leaf) + '/'
-
-        # Check if destination_dir already exists, and skip if so
-        # TODO: add support to overwrite?
-        try:
-            transfer.operation_ls(p.opt["archiveEndPoint"], path=destination_directory)
-            logging.error(f"Destination {destination_directory} already exists on archiveEndPoint.  SKIPPING!")
-            continue
-        except globus_sdk.exc.TransferAPIError as e:
-            if e.code != u'ClientError.NotFound':
-                logging.fatal(f"Can't ls {p.opt['archiveEndPoint']} : {destination_directory}")
-                logging.fatal(e)
-                sys.exit(1)
-                
-        # create destination directory
-        try:
-            logging.info(f"Creating destination directory {destination_directory}")
-            transfer.operation_mkdir(p.opt["archiveEndPoint"], destination_directory)
-        except globus_sdk.exc.TransferAPIError as e:
-            logging.fatal(f"Can't mkdir {p.opt['archiveEndPoint']} : {destination_directory}")
-            logging.fatal(e)
-            sys.exit(1)
-
-        # TODO: set permissions for users to read dir
-        #       look at https://github.com/globus/automation-examples/blob/master/share_data.py
-
-        #tdata = globus_sdk.TransferData(transfer, local_ep_id, p.opt["archiveEndPoint"], label=item_info["transfer-label"])
-        tdata = globus_sdk.TransferData(transfer, local_ep_id, p.opt["archiveEndPoint"])
-        tdata.add_item(item_info["source"], destination_directory, recursive=True)
-        try:
-            logging.info(f"Submitting transfer task - {item_info['transfer-label']}")
-            task = transfer.submit_transfer(tdata)
-        except globus_sdk.exc.TransferAPIError as e:
-            logging.fatal("Transfer task submission failed")
-            logging.fatal(e)
-            sys.exit(1)
-        logging.info(f"Task ID: {task['task_id']}")
-        logging.info(f"This task can be monitored via the Web UI: https://app.globus.org/activity/{task['task_id']}")
-
-
+def send_email_msg():
+    logging.info(f"Sending email to {email_msg['To']}") 
+    logging.debug(f"BODY: {email_msg.get_body()}")
+    
+    with smtplib.SMTP('localhost') as s:
+       s.send_message(email_msg)
+       
 def main():
 
-    print(f"Starting {os.path.basename(__file__)}")
+    logging.info(f"Starting {os.path.basename(__file__)}")
 
-    logging.info(f"Using this configuration:")
+    pp = pprint.PrettyPrinter()
+    logging.info(f"Read this configuration:")
     for line in p.getParamsString().splitlines():
-        logging.info(f"\t{line}")
+        #logging.info(pp.pformat(line))
+        logging.info(f"{line}")
  
-    #handle_configuration()
+    handle_configuration()
+    prepare_email_msg()
 
+    logging.debug(f"Using this configuration (after transformation):")
+    for line in p.getParamsString().splitlines():
+        logging.debug(f"\t{line}")
+ 
     
-    #for item,item_info in p.opt["archiveItems"].items():
-    #    print(item)
-    #    print (item_info)
-        
-    #logging.info(f"Using archiveEndPoint: {p.opt['archiveEndPoint']}")
+    transfer_client = get_transfer_client()
+    do_transfers(transfer_client)
+    
+    send_email_msg()
 
-    
-    
-    getTokens()
-
-    # connect to globus
-    #client = globus_sdk.NativeAppAuthClient(CLIENT_ID)
-    
-    #getGlobusAuthorizer(p, client)
-    
-
-
+    if p.opt["cleanTemp"] and os.path.isdir(p.opt['tempDir']):
+        logging.info(f"removing temp directory tree : {p.opt['tempDir']}")
+        shutil.rmtree(p.opt["tempDir"])
    
 
 if __name__ == "__main__":
