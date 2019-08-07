@@ -56,6 +56,11 @@ except  ImportError:
 
 defaultParams = """
 
+######################################
+#          GLOBUS CONFIGURATION
+######################################
+
+
 # Imports used in the configuration file
 import os
 import socket
@@ -158,11 +163,6 @@ archiveItems = {
        "expectedFileSize": 1024
        }
 }
-
-#########################
-#  GLOBUS CONFIGURATION
-#########################
-
 """
 ########################################
 # Copied from https://github.com/globus/native-app-examples/blob/master/utils.py
@@ -507,7 +507,12 @@ def do_transfers(transfer):
     #print('\nDoing a second directory listing with a new access token:')
     #for entry in transfer.operation_ls(p.opt["archiveEndPoint"], path='/~/'):
     #    print(entry['name'] + ('/' if entry['type'] == 'dir' else ''))
-    
+
+    local_ep = globus_sdk.LocalGlobusConnectPersonal()
+    local_ep_id = local_ep.endpoint_id
+
+    #tdata = globus_sdk.TransferData(transfer, local_ep_id, p.opt["archiveEndPoint"], label=ii["transfer_label"])
+    tdata = globus_sdk.TransferData(transfer, local_ep_id, p.opt["archiveEndPoint"])
 
     logging.info("\nBEGINNING PROCESSING OF archiveItems")
     for item,item_info in p.opt["archiveItems"].items():
@@ -523,7 +528,7 @@ def do_transfers(transfer):
             ii["tarFileName"] = p.opt["archive_date_time"].strftime(ii["tarFileName"])
         if ii.get("cdDirTar"):
             ii["cdDirTar"] = p.opt["archive_date_time"].strftime(ii["cdDirTar"])
-   
+        
         if "*" in ii["source"] or "?" in ii["source"]:  # Is there a '*' or '?' in the source?
             logging.verbose(f"Found wildcard in source: {ii['source']}")
             expanded_sources = glob.glob(ii['source']);
@@ -533,6 +538,10 @@ def do_transfers(transfer):
                 log_and_email(f"Source expands to zero targets: {ii['source']}).  SKIPPING!", logging.error)
                 continue
 
+        else:
+            ii["glob"] = False
+
+        if ii.get("glob") == True and not ii.get("tarFileName"):     
             # can't handle both dirs and files in a glob
             file_glob = False
             dir_glob = False
@@ -554,16 +563,18 @@ def do_transfers(transfer):
                     ii["last_glob"] = False
                 else:
                     ii["last_glob"] = True
-                do_transfer(transfer, ii)
+                prepare_and_add_transfer(tdata, ii)
         else:
-            ii["glob"] = False
-            do_transfer(transfer, ii)
+             prepare_and_add_transfer(tdata, ii)
 
+    # submit all tasks for transfer
+    submit_transfer_task(transfer, tdata)
 
-def do_transfer(transfer, item_info):
-    if prepare_transfer(transfer, item_info):
+def prepare_and_add_transfer(tdata, item_info):
+    logging.info(f"\nTRANSFER -- {item_info['source']}")
+    if prepare_transfer(item_info):
         # check_sizes(item_info)  -- this is done during prepare, could be refactored to here?
-        transfer_item(transfer, item_info)
+        add_transfer_item(tdata, item_info)
 
 # recursively creates parents to make path
 def make_globus_dir(transfer, path):
@@ -576,7 +587,7 @@ def make_globus_dir(transfer, path):
             transfer.operation_mkdir(dest_path)
     
     
-def prepare_transfer(transfer, ii):
+def prepare_transfer(ii):
     
     add_to_email(f"\nSOURCE:      {ii['source']}\n")
     add_to_email(f"DESTINATION: {ii['destination']}\n")
@@ -627,7 +638,8 @@ def prepare_transfer(transfer, ii):
         logging.verbose(f"got output: {output}") 
         ii["num_files"] = int(output.stdout)
 
-    ii["file_size"] = os.path.getsize(ii["source"])
+    #if not ii["glob"] or ii.get("tarFileName"):
+    #    ii["file_size"] = os.path.getsize(ii["source"])
 
     if ii.get("expectedFileSize") and (not ii["glob"] or ii.get("last_glob")):
         if ii.get("file_size"):
@@ -664,8 +676,8 @@ def log_and_email(msg_str, logfunc):
         add_to_email(logfunc.__name__.upper() + ": " + msg_str)
                                           
           
-def transfer_item(transfer, ii):
-    logging.verbose(f"Entering transfer_item {transfer}, {ii}")
+def add_transfer_item(tdata, ii):
+    logging.verbose(f"Entering transfer_item {tdata}, {ii}")
     # get leaf dir from source, and add it to destination
 
 
@@ -705,22 +717,20 @@ def transfer_item(transfer, ii):
     # TODO: set permissions for users to read dir
     #       look at https://github.com/globus/automation-examples/blob/master/share_data.py
 
-    local_ep = globus_sdk.LocalGlobusConnectPersonal()
-    local_ep_id = local_ep.endpoint_id
-
     #print("Looking at local end point")
     #for entry in transfer.operation_ls(local_ep_id):
     #    print(f"Local file: {entry['name']}")
     
-    #tdata = globus_sdk.TransferData(transfer, local_ep_id, p.opt["archiveEndPoint"], label=ii["transfer_label"])
-    tdata = globus_sdk.TransferData(transfer, local_ep_id, p.opt["archiveEndPoint"], label=ii["transfer_label"])
     if os.path.isdir(ii['source']):
         tdata.add_item(ii['source'], destination, recursive=True)
     else:
         tdata.add_item(ii['source'], destination)
     logging.debug(f"Adding TransferData item: {ii['source']} -> {destination}") 
+
+
+def submit_transfer_task(transfer, tdata):
     try:
-        logging.info(f"Submitting transfer task - {ii['transfer_label']}")
+        logging.info(f"Submitting transfer task - {tdata}")
         task = transfer.submit_transfer(tdata)
     except globus_sdk.exc.TransferAPIError as e:
         log_and_email("Transfer task submission failed", logging.fatal)
