@@ -6,9 +6,9 @@ GlobusArchiver.py helps users archive data to the Campaign Store (and other Glob
 
 import sys    
 if sys.version_info[0] < 3:
-    raise Exception("Must be using Python 3.5 or later")
-if sys.version_info[0] == 3 and sys.version_info[1] < 5:
-    raise Exception("Must be using Python 3.5 or later")
+    raise Exception("Must be using Python 3.6 or later")
+if sys.version_info[0] == 3 and sys.version_info[1] < 6:
+    raise Exception("Must be using Python 3.6 or later")
 
 
 ######################
@@ -46,7 +46,7 @@ import globus_sdk
 import logging
 
 # manage externals
-sys.path.append('configmaster')
+sys.path.append(os.path.join(os.path.abspath(os.path.dirname(__file__)),'configmaster'))
 try:
     from ConfigMaster import ConfigMaster
 except  ImportError:
