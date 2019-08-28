@@ -17,7 +17,7 @@ You can find [instructions for creating a personal globus account on the CISL we
 
 You will need these installed to start your own local endpoint.  I had SNAT install them in:
 * /opt/globusconnectpersonal-2.3.6/globusconnectpersonal
-* /opt/bin/globus
+* /opt/python3/bin/globus
 
 The instructions that follow assume these two programs are in your path.  A "quickstart guide" to using Globus Connect Personal is given below, but you can also find more [information about Globus Connect Personal online](https://www.globus.org/globus-connect-personal).
 
