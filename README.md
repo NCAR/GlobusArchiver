@@ -40,7 +40,7 @@ To get the required dependencies, run the following:
 
 ## Configure your local accesible directories
 
-You will need to edit ~/.globusonline/lta/config-paths to configure which local directories are accessible via your personal endpoint.  [Details are online.](https://docs.globus.org/faq/globus-connect-endpoints/#how_do_i_configure_accessible_directories_on_globus_connect_personal_for_linux)
+You will need to edit ~/.globusonline/lta/config-paths to configure which local directories are accessible via your personal endpoint.  If you are using GlobusArchiver to create TAR files, be sure to include your tmp directory in this file, because this is where tar files will be staged before sending.   [Details are online.](https://docs.globus.org/faq/globus-connect-endpoints/#how_do_i_configure_accessible_directories_on_globus_connect_personal_for_linux)
 
 ## Create your local endpoint
 You only need to do this once.  Once you have your local endpoint created it persists.  You can check to see if you have a global endpoint already using the globus endpoint search:
@@ -75,7 +75,7 @@ globus ls ${LOCAL_EP_ID}:/path/to/local/files
 ```
 
 ## Running GlobusArchiver.py
-First you will want to use the "print_params" argument to create a default configuration file for GlobusArchiver.py
+First you will want to use the "print_params" argument to create a default configuration file for GlobusArchiver.py   ConfigMaster treats your configuration file like a python module, and python requires no periods in the configuration name (except the .py), so **please use underscore or dash as separators in your configuration name.**
 
 ```
 GlobusArchiver.py --print_params > GlobusArchiver_my_project.py
