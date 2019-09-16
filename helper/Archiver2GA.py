@@ -60,6 +60,10 @@ def main():
         destination = subDateStrings(line.replace("<destination>","").replace("</destination>","")).rstrip()
         print(f'"destination": "{destination}"')
 
+      if "<tarFilename" in line:
+        tarFilename = subDateStrings(line.replace("<tarFilename>","").replace("</tarFilename>","")).rstrip()
+        print(f'"tarFileName": "{tarFilename}"')
+
       if "<cdDirTar>" in line:
         cdDirTar = subDateStrings(line.replace("<cdDirTar>","").replace("</cdDirTar>","")).rstrip()
         print(f'"cdDirTar": "{cdDirTar}"')
