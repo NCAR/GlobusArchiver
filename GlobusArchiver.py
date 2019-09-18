@@ -129,7 +129,9 @@ archiveDateTimeString=""
 archiveDateTimeFormats=["%Y%m%d","%Y%m%d%H","%Y-%m-%dT%H:%M:%SZ"]
 
 # You may want to keep the tmp area around for debugging
-cleanTemp = True
+# If this is set to True, the data will be scrubbed before
+# the archiver can send it
+cleanTemp = False
 
 ####################################
 ## ARCHIVE ITEM CONFIGURATION
