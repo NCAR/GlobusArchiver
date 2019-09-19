@@ -535,7 +535,10 @@ def do_transfers(transfer):
             ii["tarFileName"] = p.opt["archive_date_time"].strftime(ii["tarFileName"])
         if ii.get("cdDirTar"):
             ii["cdDirTar"] = p.opt["archive_date_time"].strftime(ii["cdDirTar"])
-        
+
+        add_to_email(f"\nSOURCE:      {ii['source']}\n")
+        add_to_email(f"DESTINATION: {ii['destination']}\n")
+
         if "*" in ii["source"] or "?" in ii["source"]:  # Is there a '*' or '?' in the source?
             logging.verbose(f"Found wildcard in source: {ii['source']}")
             expanded_sources = glob.glob(ii['source']);
@@ -559,7 +562,7 @@ def do_transfers(transfer):
                     dir_glob = True
             if file_glob and dir_glob:
                 # TODO: Copied this from Archiver.pl Is this still true?  
-                log_and_email("glob: {ii['source']} expands to files and dirs.  Not allowed.  Skipping this archive item.", logging.error)
+                log_and_email(f"glob: {ii['source']} expands to files and dirs.  Not allowed.  Skipping this archive item.", logging.error)
                 continue
                
             for es_ix, es in enumerate(expanded_sources):
@@ -575,7 +578,7 @@ def do_transfers(transfer):
             if not os.path.exists(ii["source"]):
                 log_and_email("{ii['source']} does not exist. Skipping this archive item.", logging.error)
                 continue
-             prepare_and_add_transfer(tdata, ii)
+            prepare_and_add_transfer(tdata, ii)
 
     # submit all tasks for transfer
     submit_transfer_task(transfer, tdata)
@@ -599,9 +602,6 @@ def make_globus_dir(transfer, path):
     
 def prepare_transfer(ii):
     
-    add_to_email(f"\nSOURCE:      {ii['source']}\n")
-    add_to_email(f"DESTINATION: {ii['destination']}\n")
- 
     if not ii["source"].startswith('/'):
         log_and_email(f"{item} source: {ii['source']} must be absolute.  SKIPPING!", logging.error)
         return False
