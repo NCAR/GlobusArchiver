@@ -297,11 +297,16 @@ def run_cmd(cmd):
     # multiple separate commands is too much work right now.
     # TODO: https://stackoverflow.com/questions/13332268/how-to-use-subprocess-command-with-pipes
     # https://stackoverflow.com/questions/295459/how-do-i-use-subprocess-popen-to-connect-multiple-processes-by-pipes
-    if '|' in cmd or ';' in cmd:
-        return subprocess.run(cmd, check=True, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding='utf-8')
-    else:
-        splitcmd = shlex.split(cmd)
-        return subprocess.run(splitcmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding = 'utf-8')
+    try:
+        if '|' in cmd or ';' in cmd:
+            return subprocess.run(cmd, check=True, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding='utf-8')
+        else:
+            splitcmd = shlex.split(cmd)
+            return subprocess.run(splitcmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding = 'utf-8')
+
+    except subprocess.CalledProcessError:
+        logging.error(f'Could not run {cmd}.')
+        return None
 
 def parse_archive_date_time():
 
@@ -537,7 +542,7 @@ def do_transfers(transfer):
             ii["glob"] = True
             
             if len(expanded_sources) == 0:
-                log_and_email(f"Source expands to zero targets: {ii['source']}).  SKIPPING!", logging.error)
+                log_and_email(f"Source expands to zero targets: {ii['source']}.  SKIPPING!", logging.error)
                 continue
 
         else:
@@ -567,6 +572,9 @@ def do_transfers(transfer):
                     ii["last_glob"] = True
                 prepare_and_add_transfer(tdata, ii)
         else:
+            if not os.path.exists(ii["source"]):
+                log_and_email("{ii['source']} does not exist. Skipping this archive item.", logging.error)
+                continue
              prepare_and_add_transfer(tdata, ii)
 
     # submit all tasks for transfer
@@ -620,7 +628,8 @@ def prepare_transfer(ii):
         cmd += "-S .gz ";  #force .gz suffix in case of differing gzip version
         cmd += ii['source'];
         logging.debug(f"ZIPing file via cmd: {cmd}")
-        run_cmd(cmd)
+        if not run_cmd(cmd):
+            return False
         if os.path.isfile(ii['source']):
             ii['source'] += ".gz"
 
@@ -631,12 +640,15 @@ def prepare_transfer(ii):
         if ii.get("cdDirTar"):
             cmd += f" --directory {ii['cdDirTar']}"
         cmd += f" {ii['source']}"
-        run_cmd(cmd)
+        if not run_cmd(cmd):
+            return False
         # created the tar file, so now set the source to the tar file 
         ii["source"]=os.path.join(tar_dir,ii["tarFileName"])
 
         cmd = f"tar tf {ii['source']} | wc -l"
         output = run_cmd(cmd)
+        if output is None:
+            return False
         logging.verbose(f"got output: {output}") 
         ii["num_files"] = int(output.stdout)
 
