@@ -576,7 +576,7 @@ def do_transfers(transfer):
                 prepare_and_add_transfer(tdata, ii)
         else:
             if not os.path.exists(ii["source"]):
-                log_and_email("{ii['source']} does not exist. Skipping this archive item.", logging.error)
+                log_and_email(f"{ii['source']} does not exist. Skipping this archive item.", logging.error)
                 continue
             prepare_and_add_transfer(tdata, ii)
 
@@ -686,10 +686,18 @@ def add_to_email(email_str):
         
 def log_and_email(msg_str, logfunc):
         # uses global email_msg
+        global email_errors
+        global email_warnings
+
+        # add to error/warning counter to modify email subject
+        if logfunc == logging.error:
+            email_errors = email_errors + 1
+        elif logfunc == logging.warning:
+            email_warnings = email_warnings + 1
+
         logfunc(msg_str)
         add_to_email(logfunc.__name__.upper() + ": " + msg_str)
-                                          
-          
+
 def add_transfer_item(tdata, ii):
     logging.verbose(f"Entering transfer_item {tdata}, {ii}")
     # get leaf dir from source, and add it to destination
@@ -756,13 +764,28 @@ def submit_transfer_task(transfer, tdata):
 
 def prepare_email_msg():
     email_msg['From'] = email.headerregistry.Address(*p.opt["fromEmail"])
-    email_msg['Subject'] = f"GlobusArchiver - {socket.gethostname()} - {os.path.basename(p.getConfigFilePath())}"
+
     to = ()
     for em in p.opt["emailAddresses"]:
         to += (email.headerregistry.Address(*em),)
     email_msg['To'] = to
 
     email_msg.set_content(f"This is a msg from GlobusArchiver.py.\n")
+
+def set_email_msg_subject():
+    subject = ''
+    if email_errors == 0 and email_warnings == 0:
+        subject = 'NO PROBLEMS with '
+    else:
+        if email_errors:
+            subject += f'{email_errors} ERRORS '
+        if email_warnings:
+            subject += f'{email_warnings} WARNINGS '
+        subject += 'with '
+
+    date_formatted = p.opt["archive_date_time"].strftime('%Y-%m-%d')
+    subject += f"GlobusArchiver on {socket.gethostname()} - {os.path.basename(p.getConfigFilePath())} - {date_formatted}"
+    email_msg['Subject'] = subject
 
 def send_email_msg():
     logging.info(f"Sending email to {email_msg['To']}") 
@@ -791,7 +814,8 @@ def main():
     
     transfer_client = get_transfer_client()
     do_transfers(transfer_client)
-    
+
+    set_email_msg_subject()
     send_email_msg()
 
     if p.opt["cleanTemp"] and os.path.isdir(p.opt['tempDir']):
