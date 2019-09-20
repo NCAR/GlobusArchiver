@@ -133,6 +133,9 @@ archiveDateTimeFormats=["%Y%m%d","%Y%m%d%H","%Y-%m-%dT%H:%M:%SZ"]
 # the archiver can send it
 cleanTemp = False
 
+# Set to False to process data but don't actually submit the tasks to Globus
+submitTasks = True
+
 ####################################
 ## ARCHIVE ITEM CONFIGURATION
 ####################################
@@ -569,6 +572,10 @@ def do_transfers(transfer):
 
             ii['num_files'] = 0
             for es_ix, es in enumerate(expanded_sources):
+                # skip files that start with underscore if set to skip them
+                if ii.get("skipUnderscoreFiles") and es.startswith('_'):
+                    continue
+
                 ii["source"] = es
 
                 # if not last item
@@ -584,7 +591,8 @@ def do_transfers(transfer):
             prepare_and_add_transfer(tdata, ii)
 
     # submit all tasks for transfer
-    submit_transfer_task(transfer, tdata)
+    if p.opt['submitTasks']:
+        submit_transfer_task(transfer, tdata)
 
 def prepare_and_add_transfer(tdata, item_info):
     logging.info(f"\nTRANSFER -- {item_info['source']}")
@@ -662,6 +670,9 @@ def prepare_transfer(ii):
             cmd += relative_path
         else:
             cmd = f"tar rf {tar_path} {ii['source']}"
+
+        if ii.get("skipUnderscoreFiles"):
+            cmd += " --exclude \"_*\""
 
         if not run_cmd(cmd):
             return False
