@@ -541,6 +541,9 @@ def do_transfers(transfer):
         if ii.get("cdDir"):
             ii["cdDir"] = p.opt["archive_date_time"].strftime(ii["cdDir"])
 
+        # initialize number of files to 0
+        ii['num_files'] = 0
+
         add_to_email(f"\nSOURCE:      {ii['source']}\n")
         add_to_email(f"DESTINATION: {ii['destination']}\n")
 
@@ -570,7 +573,6 @@ def do_transfers(transfer):
                 log_and_email(f"glob: {ii['source']} expands to files and dirs.  Not allowed.  Skipping this archive item.", logging.error)
                 continue
 
-            ii['num_files'] = 0
             for es_ix, es in enumerate(expanded_sources):
                 # skip files that start with underscore if set to skip them
                 if ii.get("skipUnderscoreFiles") and es.startswith('_'):
@@ -686,7 +688,11 @@ def prepare_transfer(ii):
         logging.verbose(f"got output: {output}") 
         ii["num_files"] = int(output.stdout)
     else:
-        if ii.get("num_files"):
+        # if source is a directory, list the number of files inside
+        # otherwise just increment number of files
+        if os.path.isdir(ii["source"]):
+            ii["num_files"] = len(os.listdir(ii["source"]))
+        else:
             ii["num_files"] += 1
 
     #if not ii["glob"] or ii.get("tarFileName"):
@@ -709,9 +715,10 @@ def prepare_transfer(ii):
             if ii["num_files"] < ii["expectedNumFiles"]:
               
                 log_and_email(
-                    f"WARNING: num_files < expectedNumFiles: {ii['num_files']} < {ii['expectedNumFiles']})",
+                    f"Item has {ii['num_files']} files but expects {ii['expectedNumFiles']} files!",
                     logging.warning)
         else:
+            # this should never happen
             log_and_email(
                 f"expectedNumFiles given, but num_files not calculated", logging.warning)
     return True
