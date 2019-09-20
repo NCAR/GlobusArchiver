@@ -72,6 +72,8 @@ def main():
     inItem = False
     # if doZip is set for all items, set it for each unless that item has doZip = false
     doZipAll = False
+    # if skipUnderscoreFiles is set for all items, set it for each unless that item has skipUnderscoreFiles = false
+    skipUnderscoreFilesAll = False
     # get email address
     verificationEmail = None
 
@@ -89,9 +91,10 @@ def main():
             output += f'"item-{item}":\n'
             output += ' ' * indent + "{\n"
             inItem = True
-            # keep track if doZip was set in this archiveItem so we know to override
-            # it with global doZip or not
+            # keep track if doZip and skipUnderscoreFiles was set in this archiveItem so we know to override
+            # it with global  or not
             doZipIsSet = False
+            skipUnderscoreFilesIsSet = False
 
       if "<source>" in line:
         source = subDateStrings(line.replace("<source>","").replace("</source>","")).rstrip()
@@ -134,16 +137,32 @@ def main():
           output += ' ' * indent + f'"doZip": {doZip},\n'
           doZipIsSet = True
 
+      if "<skipUnderscoreFiles>" in line:
+        skipUnderscoreFiles = line.replace("<skipUnderscoreFiles>","").replace("</skipUnderscoreFiles>","").rstrip()
+        skipUnderscoreFiles = False if skipUnderscoreFiles.lower() == 'false' else True
+
+        # if outside archiveItem, this line is global skipUnderscoreFiles
+        if not inItem:
+          skipUnderscoreFilesAll = skipUnderscoreFiles
+        else:
+          output += ' ' * indent + f'"skipUnderscoreFiles": {skipUnderscoreFiles},\n'
+          skipUnderscoreFilesIsSet = True
+
       if "</archiveItem>" in line:
             # if doZip was not set in this item but it was set to for all, set doZip to global doZip
             if not doZipIsSet and doZipAll:
               output += ' ' * indent + f'"doZip": {doZipAll},\n'
+
+            # if skipUnderscoreFiles was not set in this item but it was set to for all, set to global
+            if not skipUnderscoreFilesIsSet and skipUnderscoreFilesAll:
+              output += ' ' * indent + f'"skipUnderscoreFiles": {skipUnderscoreFilesAll},\n'
 
             output += ' ' * indent + "},\n"
             item += 1
             # reset booleans that pertain to a given archiveItem
             inItem = False
             doZipIsSet = False
+            skipUnderscoreFilesIsSet = False
 
   # replace default values for archiveItems with converted items from input file
   match = re.match(r'.*archiveItems\s=\s\{(.*)\}\n.*', defaultParam, re.DOTALL)
