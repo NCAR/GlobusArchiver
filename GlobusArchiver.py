@@ -111,7 +111,7 @@ globusTokenFile = os.path.join(os.path.expanduser("~"),".globus-ral","refresh-to
 ######################
 # Archive Date/Time
 #
-# This is used to set the date/timme of the Archive.
+# This is used to set the date/time of the Archive.
 # The date/time can be substituted into all archive-item strings, by using
 # standard strftime formatting.
 
@@ -139,7 +139,7 @@ cleanTemp = False
 
 # TODO: transfer-args are currently ignored
 
-# do_zip is optional, and defaults to False
+# doZip is optional, and defaults to False
 # transferLabel is optional, and defaults to the item key + "-%Y%m%d"
 # tar_filename is optional and defaults to "".  TAR is only done if tar_filename is a non-empty string
 # transferArgs is a placeholder and not yet implemented.
@@ -317,7 +317,7 @@ def parse_archive_date_time():
  if p.opt["archiveDateTimeString"]:
      for format in p.opt["archiveDateTimeFormats"]:
          try:
-             archive_date_time = dattime.datetime.datetime.strptime(p.opt["archiveDateTimeString"], format)
+             archive_date_time = datetime.datetime.strptime(p.opt["archiveDateTimeString"], format)
          except ValueError:
              continue
         
@@ -565,7 +565,8 @@ def do_transfers(transfer):
                 # TODO: Copied this from Archiver.pl Is this still true?  
                 log_and_email(f"glob: {ii['source']} expands to files and dirs.  Not allowed.  Skipping this archive item.", logging.error)
                 continue
-               
+
+            ii['num_files'] = 0
             for es_ix, es in enumerate(expanded_sources):
                 ii["source"] = es
 
@@ -611,7 +612,7 @@ def prepare_transfer(ii):
         return False
 
     # error and skip if cdDir is not a subset of source
-    if(ii['source'].find(ii['cdDir']) == -1):
+    if ii.get('cdDir') and ii['source'].find(ii['cdDir']) == -1:
         log_and_email(f"source {ii['source']} must contain cdDir ({ii['cdDir']}. SKIPPING!",
                       logging.error)
         return
@@ -628,7 +629,7 @@ def prepare_transfer(ii):
     #    
     #    return False
 
-    if ii.get("do_zip"):
+    if ii.get("doZip"):
         cmd = "gzip "
         if os.path.isdir(ii['source']):
             cmd += "-r "
@@ -641,12 +642,26 @@ def prepare_transfer(ii):
             ii['source'] += ".gz"
 
     if ii.get("tarFileName"):
+        # check if input is empty directory and skip if so
+        if os.path.isdir(ii['source']) and not os.listdir(ii['source']):
+            log_and_email(f"Source directory is empty: {ii['source']}. SKIPPING!",
+                          logging.error)
+            return False
+
         tar_dir = os.path.join(p.opt["tempDir"], f"Item-{ii['transfer_label']}-Tar")
         safe_mkdirs(tar_dir)
-        cmd = f"cd {tar_dir}; tar rf {ii['tarFileName']}"
+        tar_path = os.path.join(tar_dir,ii["tarFileName"])
+        # if cdDir is set, cd into that directory and create the tarball using the
+        # relative path to source from cdDir. If source and cdDir are the same, use *
         if ii.get("cdDir"):
-            cmd += f" --directory {ii['cdDir']}"
-        cmd += f" {ii['source']}"
+            cmd = f"cd {ii['cdDir']}; tar rf {tar_path} "
+            relative_path = ii['source'].replace(ii['cdDir'], '').lstrip(os.path.sep)
+            if relative_path == '':
+                relative_path = '*'
+            cmd += relative_path
+        else:
+            cmd = f"tar rf {tar_path} {ii['source']}"
+
         if not run_cmd(cmd):
             return False
         # created the tar file, so now set the source to the tar file 
@@ -658,6 +673,9 @@ def prepare_transfer(ii):
             return False
         logging.verbose(f"got output: {output}") 
         ii["num_files"] = int(output.stdout)
+    else:
+        if ii.get("num_files"):
+            ii["num_files"] += 1
 
     #if not ii["glob"] or ii.get("tarFileName"):
     #    ii["file_size"] = os.path.getsize(ii["source"])
