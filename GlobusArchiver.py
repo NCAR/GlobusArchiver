@@ -295,10 +295,11 @@ def run_cmd(cmd):
     
     # I know you shouldn't use shell=True, but splitting up a piped cmd into
     # multiple separate commands is too much work right now.
+    # shell=True is also required if using wildcards
     # TODO: https://stackoverflow.com/questions/13332268/how-to-use-subprocess-command-with-pipes
     # https://stackoverflow.com/questions/295459/how-do-i-use-subprocess-popen-to-connect-multiple-processes-by-pipes
     try:
-        if '|' in cmd or ';' in cmd:
+        if '|' in cmd or ';' in cmd or '*' in cmd or '?' in cmd:
             return subprocess.run(cmd, check=True, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding='utf-8')
         else:
             splitcmd = shlex.split(cmd)
@@ -577,7 +578,7 @@ def do_transfers(transfer):
                     ii["last_glob"] = True
                 prepare_and_add_transfer(tdata, ii)
         else:
-            if not os.path.exists(ii["source"]):
+            if not ii["glob"] and not os.path.exists(ii["source"]):
                 log_and_email(f"{ii['source']} does not exist. Skipping this archive item.", logging.error)
                 continue
             prepare_and_add_transfer(tdata, ii)
