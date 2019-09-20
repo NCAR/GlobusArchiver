@@ -5,20 +5,28 @@ import os
 import re
 from subprocess import Popen, PIPE
 
+valid_programs = ['aap',
+                  'hap',
+                  'jntp',
+                  'nral0003',
+                  'nsap',
+                  'wsap',
+                  ]
+
 def subDateStrings(s):
-  #print(s)
-  s = s.replace("DATEYYYYMMDD","%Y%m%d")
-  s = s.replace("DATEYYYY","%Y")
-  s = s.replace("DATEJJJ","%j")
-  s = s.replace("DATEMMDD","%m%d")
-  #print(s)
-  return s
+    #print(s)
+    s = s.replace("DATEYYYYMMDD","%Y%m%d")
+    s = s.replace("DATEYYYY","%Y")
+    s = s.replace("DATEJJJ","%j")
+    s = s.replace("DATEMMDD","%m%d")
+    #print(s)
+    return s
 
 def getDefaultParam():
-  globus_script = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', 'GlobusArchiver.py')
-  process = Popen([globus_script, '--print_params'], stdout=PIPE)
-  (output, err) = process.communicate()
-  return output.decode('utf-8')
+    globus_script = os.path.join(os.path.abspath(os.path.dirname(__file__)), '..', 'GlobusArchiver.py')
+    process = Popen([globus_script, '--print_params'], stdout=PIPE)
+    (output, err) = process.communicate()
+    return output.decode('utf-8')
 
 def main():
 
@@ -70,7 +78,7 @@ def main():
     for line in in_file:
 
       # replace /RAPDMG with the new path to the RAPDMG area
-      if program and '/RAPDMG/projects' in line:
+      if program in valid_programs and '/RAPDMG/projects' in line:
         line = line.replace('/RAPDMG/projects', f'/gpfs/csfs1/ral/{program}')
 
       # get email address
@@ -97,9 +105,15 @@ def main():
         tarFilename = subDateStrings(line.replace("<tarFilename>","").replace("</tarFilename>","")).rstrip()
         output += ' ' * indent + f'"tarFileName": "{tarFilename}",\n'
 
+      # cdDirTar and cdDir are aliases for the same thing, so set either
+      # item to cdDir in the output
       if "<cdDirTar>" in line:
         cdDirTar = subDateStrings(line.replace("<cdDirTar>","").replace("</cdDirTar>","")).rstrip()
-        output += ' ' * indent + f'"cdDirTar": "{cdDirTar}",\n'
+        output += ' ' * indent + f'"cdDir": "{cdDirTar}",\n'
+
+      if "<cdDir>" in line:
+        cdDir = subDateStrings(line.replace("<cdDir>","").replace("</cdDir>","")).rstrip()
+        output += ' ' * indent + f'"cdDir": "{cdDir}",\n'
 
       if "<expectedNumFiles>" in line:
         expectedNumFiles = line.replace("<expectedNumFiles>","").replace("</expectedNumFiles>","").rstrip()
