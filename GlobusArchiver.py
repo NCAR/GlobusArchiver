@@ -160,7 +160,7 @@ archiveItems = {
        "transferLabel": "icing_cvs_data_%Y%m%d",
        "doZip": False,
        "tarFileName": "test2.tar",
-       "cdDirTar": "/d1/prestop/backup",
+       "cdDir": "/d1/prestop/backup",
        "expectedNumFiles": 3,
        "expectedFileSize": 1024
        }
@@ -533,8 +533,9 @@ def do_transfers(transfer):
         
         if ii.get("tarFileName"):
             ii["tarFileName"] = p.opt["archive_date_time"].strftime(ii["tarFileName"])
-        if ii.get("cdDirTar"):
-            ii["cdDirTar"] = p.opt["archive_date_time"].strftime(ii["cdDirTar"])
+
+        if ii.get("cdDir"):
+            ii["cdDir"] = p.opt["archive_date_time"].strftime(ii["cdDir"])
 
         add_to_email(f"\nSOURCE:      {ii['source']}\n")
         add_to_email(f"DESTINATION: {ii['destination']}\n")
@@ -609,6 +610,12 @@ def prepare_transfer(ii):
         log_and_email(f"{item} destination: {ii['destination']} must be absolute.  SKIPPING!", logging.error)
         return False
 
+    # error and skip if cdDir is not a subset of source
+    if(ii['source'].find(ii['cdDir']) == -1):
+        log_and_email(f"source {ii['source']} must contain cdDir ({ii['cdDir']}. SKIPPING!",
+                      logging.error)
+        return
+
     # Don't need this?  transfer should automatically make dirs as needed.
     #try:
     #    transfer.operation_ls(p.opt["archiveEndPoint"], path=ii["destination"])
@@ -637,8 +644,8 @@ def prepare_transfer(ii):
         tar_dir = os.path.join(p.opt["tempDir"], f"Item-{ii['transfer_label']}-Tar")
         safe_mkdirs(tar_dir)
         cmd = f"cd {tar_dir}; tar rf {ii['tarFileName']}"
-        if ii.get("cdDirTar"):
-            cmd += f" --directory {ii['cdDirTar']}"
+        if ii.get("cdDir"):
+            cmd += f" --directory {ii['cdDir']}"
         cmd += f" {ii['source']}"
         if not run_cmd(cmd):
             return False
@@ -701,17 +708,14 @@ def log_and_email(msg_str, logfunc):
 def add_transfer_item(tdata, ii):
     logging.verbose(f"Entering transfer_item {tdata}, {ii}")
     # get leaf dir from source, and add it to destination
-
-
-    dirname, leaf = os.path.split(ii['source'])
-    if leaf == '':
-        _, leaf = os.path.split(dirname)
-
-    # not sure if we need this?  looks like globus adds the sep for us if source is a dir
-    if os.path.isdir(ii['source']):
-        destination = os.path.join(ii['destination'], leaf) + os.path.sep
+    # if cdDir is set and not tarring data, set leaf
+    # to source with cdDir stripped off to get any subdirectories
+    if ii.get("cdDir") and not ii.get("tarFileName"):
+        leaf = ii['source'].replace(ii['cdDir'], '').lstrip(os.path.sep)
     else:
-        destination = os.path.join(ii['destination'], leaf)
+        leaf = os.path.basename(ii['source'].rstrip(os.path.sep))
+
+    destination = os.path.join(ii['destination'], leaf)
 
     logging.debug(f"Using destination: {destination}")
     
