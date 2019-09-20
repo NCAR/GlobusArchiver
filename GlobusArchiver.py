@@ -306,7 +306,7 @@ def run_cmd(cmd):
             return subprocess.run(splitcmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding = 'utf-8')
 
     except subprocess.CalledProcessError:
-        logging.error(f'Could not run {cmd}.')
+        logging.error(f'Command returned non-zero exit status: {cmd}.')
         return None
 
 def parse_archive_date_time():
