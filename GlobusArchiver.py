@@ -314,18 +314,24 @@ def run_cmd(cmd):
 
 def parse_archive_date_time():
 
- # Set dateTime based on archiveDayDelta
- archive_date_time = datetime.datetime.now() + datetime.timedelta(days=p.opt["archiveDayDelta"])
+    # Set dateTime based on archiveDayDelta
+    archive_date_time = datetime.datetime.now() + datetime.timedelta(days=p.opt["archiveDayDelta"])
 
- # If archiveDateTimeString is set, then try to use that to set dateTime
- if p.opt["archiveDateTimeString"]:
-     for format in p.opt["archiveDateTimeFormats"]:
-         try:
-             archive_date_time = datetime.datetime.strptime(p.opt["archiveDateTimeString"], format)
-         except ValueError:
-             continue
+    # If archiveDateTimeString is set, then try to use that to set dateTime
+    if p.opt["archiveDateTimeString"]:
+        for format in p.opt["archiveDateTimeFormats"]:
+            logging.debug(f"Checking {p.opt['archiveDateTimeString']} for format {format}")
+            try:
+                archive_date_time = datetime.datetime.strptime(p.opt["archiveDateTimeString"], format)
+            except ValueError:
+                continue
         
- return archive_date_time
+            return archive_date_time
+
+        # if not matched, error and exit
+        logging.error(f"--archiveDateTimeString value ({p.opt['archiveDateTimeString']}) did not match any "
+                      f"--archiveDateTimeFormats items: {p.opt['archiveDateTimeFormats']}")
+        exit(1)
 
 def add_tar_groups_info():
     for item,item_info in p.opt["archiveItems"].items():
