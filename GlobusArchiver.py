@@ -333,6 +333,8 @@ def parse_archive_date_time():
                       f"--archiveDateTimeFormats items: {p.opt['archiveDateTimeFormats']}")
         exit(1)
 
+    return archive_date_time
+
 def add_tar_groups_info():
     for item,item_info in p.opt["archiveItems"].items():
         # for each tar'd item, first assume it is the last/only item in this tar file.
