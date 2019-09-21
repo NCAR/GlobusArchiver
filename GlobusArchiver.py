@@ -845,6 +845,11 @@ def main():
 
     logging.info(f"Starting {os.path.basename(__file__)}")
 
+    if len(sys.argv) == 1:
+        logging.info('You must supply command line arguments to run GlobusArchiver.py')
+        p.parser.print_help()
+        exit(0)
+
     pp = pprint.PrettyPrinter()
     logging.info(f"Read this configuration:")
     for line in p.getParamsString().splitlines():
