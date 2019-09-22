@@ -111,7 +111,7 @@ globusTokenFile = os.path.join(os.path.expanduser("~"),".globus-ral","refresh-to
 ######################
 # Archive Date/Time
 #
-# This is used to set the date/timme of the Archive.
+# This is used to set the date/time of the Archive.
 # The date/time can be substituted into all archive-item strings, by using
 # standard strftime formatting.
 
@@ -129,7 +129,12 @@ archiveDateTimeString=""
 archiveDateTimeFormats=["%Y%m%d","%Y%m%d%H","%Y-%m-%dT%H:%M:%SZ"]
 
 # You may want to keep the tmp area around for debugging
-cleanTemp = True
+# If this is set to True, the data will be scrubbed before
+# the archiver can send it
+cleanTemp = False
+
+# Set to False to process data but don't actually submit the tasks to Globus
+submitTasks = True
 
 ####################################
 ## ARCHIVE ITEM CONFIGURATION
@@ -137,7 +142,7 @@ cleanTemp = True
 
 # TODO: transfer-args are currently ignored
 
-# do_zip is optional, and defaults to False
+# doZip is optional, and defaults to False
 # transferLabel is optional, and defaults to the item key + "-%Y%m%d"
 # tar_filename is optional and defaults to "".  TAR is only done if tar_filename is a non-empty string
 # transferArgs is a placeholder and not yet implemented.
@@ -158,7 +163,7 @@ archiveItems = {
        "transferLabel": "icing_cvs_data_%Y%m%d",
        "doZip": False,
        "tarFileName": "test2.tar",
-       "cdDirTar": "/d1/prestop/backup",
+       "cdDir": "/d1/prestop/backup",
        "expectedNumFiles": 3,
        "expectedFileSize": 1024
        }
@@ -293,28 +298,42 @@ def run_cmd(cmd):
     
     # I know you shouldn't use shell=True, but splitting up a piped cmd into
     # multiple separate commands is too much work right now.
+    # shell=True is also required if using wildcards
     # TODO: https://stackoverflow.com/questions/13332268/how-to-use-subprocess-command-with-pipes
     # https://stackoverflow.com/questions/295459/how-do-i-use-subprocess-popen-to-connect-multiple-processes-by-pipes
-    if '|' in cmd or ';' in cmd:
-        return subprocess.run(cmd, check=True, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding='utf-8')
-    else:
-        splitcmd = shlex.split(cmd)
-        return subprocess.run(splitcmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding = 'utf-8')
+    try:
+        if '|' in cmd or ';' in cmd or '*' in cmd or '?' in cmd:
+            return subprocess.run(cmd, check=True, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding='utf-8')
+        else:
+            splitcmd = shlex.split(cmd)
+            return subprocess.run(splitcmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding = 'utf-8')
+
+    except subprocess.CalledProcessError:
+        logging.error(f'Command returned non-zero exit status: {cmd}.')
+        return None
 
 def parse_archive_date_time():
 
- # Set dateTime based on archiveDayDelta
- archive_date_time = datetime.datetime.now() + datetime.timedelta(days=p.opt["archiveDayDelta"])
+    # Set dateTime based on archiveDayDelta
+    archive_date_time = datetime.datetime.now() + datetime.timedelta(days=p.opt["archiveDayDelta"])
 
- # If archiveDateTimeString is set, then try to use that to set dateTime
- if p.opt["archiveDateTimeString"]:
-     for format in p.opt["archiveDateTimeFormats"]:
-         try:
-             archive_date_time = dattime.datetime.datetime.strptime(p.opt["archiveDateTimeString"], format)
-         except ValueError:
-             continue
+    # If archiveDateTimeString is set, then try to use that to set dateTime
+    if p.opt["archiveDateTimeString"]:
+        for format in p.opt["archiveDateTimeFormats"]:
+            logging.debug(f"Checking {p.opt['archiveDateTimeString']} for format {format}")
+            try:
+                archive_date_time = datetime.datetime.strptime(p.opt["archiveDateTimeString"], format)
+            except ValueError:
+                continue
         
- return archive_date_time
+            return archive_date_time
+
+        # if not matched, error and exit
+        logging.error(f"--archiveDateTimeString value ({p.opt['archiveDateTimeString']}) did not match any "
+                      f"--archiveDateTimeFormats items: {p.opt['archiveDateTimeFormats']}")
+        exit(1)
+
+    return archive_date_time
 
 def add_tar_groups_info():
     for item,item_info in p.opt["archiveItems"].items():
@@ -526,16 +545,23 @@ def do_transfers(transfer):
         
         if ii.get("tarFileName"):
             ii["tarFileName"] = p.opt["archive_date_time"].strftime(ii["tarFileName"])
-        if ii.get("cdDirTar"):
-            ii["cdDirTar"] = p.opt["archive_date_time"].strftime(ii["cdDirTar"])
-        
+
+        if ii.get("cdDir"):
+            ii["cdDir"] = p.opt["archive_date_time"].strftime(ii["cdDir"])
+
+        # initialize number of files to 0
+        ii['num_files'] = 0
+
+        add_to_email(f"\nSOURCE:      {ii['source']}\n")
+        add_to_email(f"DESTINATION: {ii['destination']}\n")
+
         if "*" in ii["source"] or "?" in ii["source"]:  # Is there a '*' or '?' in the source?
             logging.verbose(f"Found wildcard in source: {ii['source']}")
             expanded_sources = glob.glob(ii['source']);
             ii["glob"] = True
             
             if len(expanded_sources) == 0:
-                log_and_email(f"Source expands to zero targets: {ii['source']}).  SKIPPING!", logging.error)
+                log_and_email(f"Source expands to zero targets: {ii['source']}.  SKIPPING!", logging.error)
                 continue
 
         else:
@@ -552,10 +578,14 @@ def do_transfers(transfer):
                     dir_glob = True
             if file_glob and dir_glob:
                 # TODO: Copied this from Archiver.pl Is this still true?  
-                log_and_email("glob: {ii['source']} expands to files and dirs.  Not allowed.  Skipping this archive item.", logging.error)
+                log_and_email(f"glob: {ii['source']} expands to files and dirs.  Not allowed.  Skipping this archive item.", logging.error)
                 continue
-               
+
             for es_ix, es in enumerate(expanded_sources):
+                # skip files that start with underscore if set to skip them
+                if ii.get("skipUnderscoreFiles") and es.startswith('_'):
+                    continue
+
                 ii["source"] = es
 
                 # if not last item
@@ -565,10 +595,14 @@ def do_transfers(transfer):
                     ii["last_glob"] = True
                 prepare_and_add_transfer(tdata, ii)
         else:
-             prepare_and_add_transfer(tdata, ii)
+            if not ii["glob"] and not os.path.exists(ii["source"]):
+                log_and_email(f"{ii['source']} does not exist. Skipping this archive item.", logging.error)
+                continue
+            prepare_and_add_transfer(tdata, ii)
 
     # submit all tasks for transfer
-    submit_transfer_task(transfer, tdata)
+    if p.opt['submitTasks']:
+        submit_transfer_task(transfer, tdata)
 
 def prepare_and_add_transfer(tdata, item_info):
     logging.info(f"\nTRANSFER -- {item_info['source']}")
@@ -589,15 +623,18 @@ def make_globus_dir(transfer, path):
     
 def prepare_transfer(ii):
     
-    add_to_email(f"\nSOURCE:      {ii['source']}\n")
-    add_to_email(f"DESTINATION: {ii['destination']}\n")
- 
     if not ii["source"].startswith('/'):
         log_and_email(f"{item} source: {ii['source']} must be absolute.  SKIPPING!", logging.error)
         return False
     if not ii["destination"].startswith('/'):
         log_and_email(f"{item} destination: {ii['destination']} must be absolute.  SKIPPING!", logging.error)
         return False
+
+    # error and skip if cdDir is not a subset of source
+    if ii.get('cdDir') and ii['source'].find(ii['cdDir']) == -1:
+        log_and_email(f"source {ii['source']} must contain cdDir ({ii['cdDir']}. SKIPPING!",
+                      logging.error)
+        return
 
     # Don't need this?  transfer should automatically make dirs as needed.
     #try:
@@ -611,32 +648,60 @@ def prepare_transfer(ii):
     #    
     #    return False
 
-    if ii.get("do_zip"):
+    if ii.get("doZip"):
         cmd = "gzip "
         if os.path.isdir(ii['source']):
             cmd += "-r "
         cmd += "-S .gz ";  #force .gz suffix in case of differing gzip version
         cmd += ii['source'];
         logging.debug(f"ZIPing file via cmd: {cmd}")
-        run_cmd(cmd)
+        if not run_cmd(cmd):
+            return False
         if os.path.isfile(ii['source']):
             ii['source'] += ".gz"
 
     if ii.get("tarFileName"):
+        # check if input is empty directory and skip if so
+        if os.path.isdir(ii['source']) and not os.listdir(ii['source']):
+            log_and_email(f"Source directory is empty: {ii['source']}. SKIPPING!",
+                          logging.error)
+            return False
+
         tar_dir = os.path.join(p.opt["tempDir"], f"Item-{ii['transfer_label']}-Tar")
         safe_mkdirs(tar_dir)
-        cmd = f"cd {tar_dir}; tar rf {ii['tarFileName']}"
-        if ii.get("cdDirTar"):
-            cmd += f" --directory {ii['cdDirTar']}"
-        cmd += f" {ii['source']}"
-        run_cmd(cmd)
+        tar_path = os.path.join(tar_dir,ii["tarFileName"])
+        # if cdDir is set, cd into that directory and create the tarball using the
+        # relative path to source from cdDir. If source and cdDir are the same, use *
+        if ii.get("cdDir"):
+            cmd = f"cd {ii['cdDir']}; tar rf {tar_path} "
+            relative_path = ii['source'].replace(ii['cdDir'], '').lstrip(os.path.sep)
+            if relative_path == '':
+                relative_path = '*'
+            cmd += relative_path
+        else:
+            cmd = f"tar rf {tar_path} {ii['source']}"
+
+        if ii.get("skipUnderscoreFiles"):
+            cmd += " --exclude \"_*\""
+
+        if not run_cmd(cmd):
+            return False
         # created the tar file, so now set the source to the tar file 
         ii["source"]=os.path.join(tar_dir,ii["tarFileName"])
 
         cmd = f"tar tf {ii['source']} | wc -l"
         output = run_cmd(cmd)
+        if output is None:
+            return False
         logging.verbose(f"got output: {output}") 
         ii["num_files"] = int(output.stdout)
+    else:
+        # if source is a directory, list the number of files inside
+        # otherwise just increment number of files
+        if os.path.isdir(ii["source"]):
+            ii["num_files"] = len(os.listdir(ii["source"]))
+        else:
+            ii["num_files"] += 1
 
     #if not ii["glob"] or ii.get("tarFileName"):
     #    ii["file_size"] = os.path.getsize(ii["source"])
@@ -658,9 +723,10 @@ def prepare_transfer(ii):
             if ii["num_files"] < ii["expectedNumFiles"]:
               
                 log_and_email(
-                    f"WARNING: num_files < expectedNumFiles: {ii['num_files']} < {ii['expectedNumFiles']})",
+                    f"Item has {ii['num_files']} files but expects {ii['expectedNumFiles']} files!",
                     logging.warning)
         else:
+            # this should never happen
             log_and_email(
                 f"expectedNumFiles given, but num_files not calculated", logging.warning)
     return True
@@ -672,24 +738,29 @@ def add_to_email(email_str):
         
 def log_and_email(msg_str, logfunc):
         # uses global email_msg
+        global email_errors
+        global email_warnings
+
+        # add to error/warning counter to modify email subject
+        if logfunc == logging.error:
+            email_errors = email_errors + 1
+        elif logfunc == logging.warning:
+            email_warnings = email_warnings + 1
+
         logfunc(msg_str)
         add_to_email(logfunc.__name__.upper() + ": " + msg_str)
-                                          
-          
+
 def add_transfer_item(tdata, ii):
     logging.verbose(f"Entering transfer_item {tdata}, {ii}")
     # get leaf dir from source, and add it to destination
-
-
-    dirname, leaf = os.path.split(ii['source'])
-    if leaf == '':
-        _, leaf = os.path.split(dirname)
-
-    # not sure if we need this?  looks like globus adds the sep for us if source is a dir
-    if os.path.isdir(ii['source']):
-        destination = os.path.join(ii['destination'], leaf) + os.path.sep
+    # if cdDir is set and not tarring data, set leaf
+    # to source with cdDir stripped off to get any subdirectories
+    if ii.get("cdDir") and not ii.get("tarFileName"):
+        leaf = ii['source'].replace(ii['cdDir'], '').lstrip(os.path.sep)
     else:
-        destination = os.path.join(ii['destination'], leaf)
+        leaf = os.path.basename(ii['source'].rstrip(os.path.sep))
+
+    destination = os.path.join(ii['destination'], leaf)
 
     logging.debug(f"Using destination: {destination}")
     
@@ -742,13 +813,28 @@ def submit_transfer_task(transfer, tdata):
 
 def prepare_email_msg():
     email_msg['From'] = email.headerregistry.Address(*p.opt["fromEmail"])
-    email_msg['Subject'] = f"GlobusArchiver - {socket.gethostname()} - {os.path.basename(p.getConfigFilePath())}"
+
     to = ()
     for em in p.opt["emailAddresses"]:
         to += (email.headerregistry.Address(*em),)
     email_msg['To'] = to
 
     email_msg.set_content(f"This is a msg from GlobusArchiver.py.\n")
+
+def set_email_msg_subject():
+    subject = ''
+    if email_errors == 0 and email_warnings == 0:
+        subject = 'NO PROBLEMS with '
+    else:
+        if email_errors:
+            subject += f'{email_errors} ERRORS '
+        if email_warnings:
+            subject += f'{email_warnings} WARNINGS '
+        subject += 'with '
+
+    date_formatted = p.opt["archive_date_time"].strftime('%Y-%m-%d')
+    subject += f"GlobusArchiver on {socket.gethostname()} - {os.path.basename(p.getConfigFilePath())} - {date_formatted}"
+    email_msg['Subject'] = subject
 
 def send_email_msg():
     logging.info(f"Sending email to {email_msg['To']}") 
@@ -760,6 +846,11 @@ def send_email_msg():
 def main():
 
     logging.info(f"Starting {os.path.basename(__file__)}")
+
+    if len(sys.argv) == 1:
+        logging.info('You must supply command line arguments to run GlobusArchiver.py')
+        p.parser.print_help()
+        exit(0)
 
     pp = pprint.PrettyPrinter()
     logging.info(f"Read this configuration:")
@@ -777,7 +868,8 @@ def main():
     
     transfer_client = get_transfer_client()
     do_transfers(transfer_client)
-    
+
+    set_email_msg_subject()
     send_email_msg()
 
     if p.opt["cleanTemp"] and os.path.isdir(p.opt['tempDir']):
