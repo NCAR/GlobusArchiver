@@ -539,16 +539,12 @@ def do_transfers(transfer):
 
         ii = copy.deepcopy(item_info)
 
-        ii["source"] = p.opt["archive_date_time"].strftime(ii["source"])
-        ii["destination"] = p.opt["archive_date_time"].strftime(ii["destination"])
-        ii["transfer_label"] = p.opt["archive_date_time"].strftime(ii["transfer_label"])
+        # substitute date/time strings and env variables in item info
+        for ii_key in ("source", "destination" "transfer_labe", "tarFileName", "cdDir"):
+            if ii.get(ii_key):
+                ii[ii_key] = p.opt["archive_date_time"].strftime(ii[ii_key])
+                ii[ii_key] = os.path.expandvars(ii[ii_key])
         
-        if ii.get("tarFileName"):
-            ii["tarFileName"] = p.opt["archive_date_time"].strftime(ii["tarFileName"])
-
-        if ii.get("cdDir"):
-            ii["cdDir"] = p.opt["archive_date_time"].strftime(ii["cdDir"])
-
         # initialize number of files to 0
         ii['num_files'] = 0
 
