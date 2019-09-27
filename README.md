@@ -27,6 +27,26 @@ To run GlobusArchiver.py, you will need the Globus Python SDK installed.
 As long as you have write permissions in your python3 environment, you can install it yourself using pip.  Instructions online are straightforward:
 https://globus-sdk-python.readthedocs.io/en/stable/installation/
 
+## Keeping the Campaign Store Endpoint Active
+By default the Campaign Store is only active for 24 hours.  You can extend this to 30 days.  First request a certificate by following the instructions on this [CISL web page](https://www2.cisl.ucar.edu/resources/storage-and-file-systems/configuring-globus-unattended-workflows).
+
+When you run the gcert command, part of the output will say something like:
+`Globus certificate created in /glade/u/home/prestop!`
+
+look in that directory, and you will find a file named something like `.prestop-globus.cert`
+
+To make globus available on cheyenne run:
+`module load python
+ncar_pylib`
+
+Now you can activate your endpoint for 30 days.
+
+`globus endpoint activate --delegate-proxy /glade/u/home/prestop/.prestop-globus.cert --proxy-lifetime 720 6b5ab960-7bbf-11e8-9450-0a6d4e044368`
+
+You can confirm the 30 day expiration of your endpoint with this command:
+` globus endpoint activate 6b5ab960-7bbf-11e8-9450-0a6d4e044368`
+
+
 
 ## Installing GlobusArchiver
 
@@ -75,6 +95,8 @@ globus ls ${LOCAL_EP_ID}:/path/to/local/files
 ```
 
 ## Running GlobusArchiver.py
+If you used Archiver.pl in the past, you can use Archiver2GA.py (found in the helper subdirectory), to convert your old Archiver.pl configuration files to GlobusArchiver.py configuration files.
+
 First you will want to use the "print_params" argument to create a default configuration file for GlobusArchiver.py   ConfigMaster treats your configuration file like a python module, and python requires no periods in the configuration name (except the .py), so **please use underscore or dash as separators in your configuration name.**
 
 ```
