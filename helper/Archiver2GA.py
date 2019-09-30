@@ -126,6 +126,21 @@ def main():
         expectedFileSize = line.replace("<expectedFileSize>","").replace("</expectedFileSize>","").rstrip()
         output += ' ' * indent + f'"expectedFileSize": {expectedFileSize},\n'
 
+      # comment, dataType, and dataFormat have no effect in GlobusArchiver.py, but this information could be
+      # useful to the user so we will preserve it
+      if "<comment>" in line:
+        comment = line.replace("<comment>","").replace("</comment>","").rstrip()
+        output += ' ' * indent + f'"comment": "{comment}",\n'
+
+      if "<dataType>" in line:
+        dataType = line.replace("<dataType>","").replace("</dataType>","").rstrip()
+        output += ' ' * indent + f'"dataType": "{dataType}",\n'
+
+      if "<dataFormat>" in line:
+        dataFormat = line.replace("<dataFormat>","").replace("</dataFormat>","").rstrip()
+        output += ' ' * indent + f'"dataFormat": "{dataFormat}",\n'
+
+      # doZip and skipUnderscoreFiles can be global tags or inside archiveItems, so keep track and handle appropriately
       if "<doZip>" in line:
         doZip = line.replace("<doZip>","").replace("</doZip>","").rstrip()
         doZip = False if doZip.lower() == 'false' else True
