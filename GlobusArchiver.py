@@ -136,6 +136,11 @@ cleanTemp = False
 # Set to False to process data but don't actually submit the tasks to Globus
 submitTasks = True
 
+# Number of seconds to wait to see if transfer completed
+# Report error if it doesn't completed after this time
+# Default is 21600 (6 hours)
+transferStatusTimeout = 21600
+
 ####################################
 ## ARCHIVE ITEM CONFIGURATION
 ####################################
@@ -598,8 +603,7 @@ def do_transfers(transfer):
 
     # submit all tasks for transfer
     if p.opt['submitTasks']:
-        task = submit_transfer_task(transfer, tdata)
-#        check_task_for_success(transfer, task)
+        submit_transfer_task(transfer, tdata)
 
 def prepare_and_add_transfer(tdata, item_info):
     logging.info(f"\nTRANSFER -- {item_info['source']}")
@@ -795,24 +799,15 @@ def add_transfer_item(tdata, ii):
         tdata.add_item(ii['source'], destination)
     logging.debug(f"Adding TransferData item: {ii['source']} -> {destination}") 
 
-def check_task_for_success(transfer, task):
+def check_task_for_success(transfer, task_id):
     logging.debug("Waiting for transfer to complete...")
+    timeout = p.opt['transferStatusTimeout']
 
-    task_id = task['task_id']
-    timeout = 60
-    max_wait = 180
-    total_wait = 0
     # wait for task to report that it completed or it timed out
-    while total_wait < max_wait or not transfer.task_wait(task_id, timeout=timeout):
-        logging.debug('.')
-        total_wait += timeout
-
-    # check if the any tasks succeeded
-#    successful_transfers = transfer.endpoint_manager_task_successful_transfers(task_id)
-#    if len(successful_transfers) == 0:
-#        log_and_email("No tasks were successfully transferred", logging.error)
-#    else:
-#        log_and_email(f"{len(successful_transfers)} tasks were successfully transferred", logging.debug)
+    if not transfer.task_wait(task_id, timeout=timeout):
+        log_and_email(f"Transfer timed out after {timeout} seconds", logging.error)
+    else:
+        log_and_email(f"Transfer complete.", logging.debug)
 
 def submit_transfer_task(transfer, tdata):
     try:
@@ -821,12 +816,12 @@ def submit_transfer_task(transfer, tdata):
     except globus_sdk.exc.TransferAPIError as e:
         log_and_email("Transfer task submission failed", logging.fatal)
         logging.fatal(e)
-        return None
+        return
         
     log_and_email(f"Task ID: {task['task_id']}", logging.info)
     log_and_email(f"This transfer can be monitored via the Web UI: https://app.globus.org/activity/{task['task_id']}", logging.info)
 
-    return task
+    check_task_for_success(transfer, task['task_id'])
 
 def prepare_email_msg():
     email_msg['From'] = email.headerregistry.Address(*p.opt["fromEmail"])
