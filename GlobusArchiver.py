@@ -807,7 +807,7 @@ def check_task_for_success(transfer, task_id):
     if not transfer.task_wait(task_id, timeout=timeout):
         log_and_email(f"Transfer timed out after {timeout} seconds", logging.error)
     else:
-        log_and_email(f"Transfer complete.", logging.debug)
+        log_and_email(f"Transfer complete.", logging.info)
 
 def submit_transfer_task(transfer, tdata):
     try:
