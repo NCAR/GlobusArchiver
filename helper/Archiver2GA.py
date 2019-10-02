@@ -135,6 +135,20 @@ def main():
                 expectedFileSize = line.replace("<expectedFileSize>", "").replace("</expectedFileSize>", "").rstrip()
                 output += ' ' * indent + f'"expectedFileSize": {expectedFileSize},\n'
 
+                # comment, dataType, and dataFormat have no effect in GlobusArchiver.py, but this information could be
+                # useful to the user so we will preserve it
+            if "<comment>" in line:
+                comment = line.replace("<comment>", "").replace("</comment>", "").rstrip()
+                output += ' ' * indent + f'"comment": "{comment}",\n'
+
+            if "<dataType>" in line:
+                dataType = line.replace("<dataType>", "").replace("</dataType>", "").rstrip()
+                output += ' ' * indent + f'"dataType": "{dataType}",\n'
+
+            if "<dataFormat>" in line:
+                dataFormat = line.replace("<dataFormat>", "").replace("</dataFormat>", "").rstrip()
+                output += ' ' * indent + f'"dataFormat": "{dataFormat}",\n'
+
             if "<doZip>" in line:
                 doZip = line.replace("<doZip>", "").replace("</doZip>", "").rstrip()
                 doZip = False if doZip.lower() == 'false' else True
@@ -164,8 +178,8 @@ def main():
                         # last element is added to destination in GlobusArchiver, but need to put rest of the path on the destination here
                         # this is a change in functionality between Archiver.pl and GlobusArchiver.py
                         branch_and_leaf = source.replace(cdDirTar, '').lstrip(os.path.sep)
-                        (branch, leaf) = os.path.split(branc_and_leaf)
-                        destination = os.path.join(ii['destination'], branch)
+                        (branch, leaf) = os.path.split(branch_and_leaf)
+                        destination = os.path.join(destination, branch)
 
                     #else:
                     #    leaf = os.path.basename(ii['source'].rstrip(os.path.sep))
