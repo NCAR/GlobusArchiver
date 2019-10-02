@@ -66,23 +66,32 @@ import os
 import socket
 import datetime
 
+
 #####################################
 ## GENERAL CONFIGURATION
 #####################################
  
+###############  TEMP DIR   ##################
+
 # tempDir is used for:
 #     - Staging Location for .tar Files
 # Default, $TMPDIR if it is defined, otherwise $HOME if defined, otherwise '.'.
 tempDir = os.path.join(os.getenv("TMPDIR",os.getenv("HOME",".")), "GlobusArchiver-tmp")
 
+# You may want to keep the tmp area around for debugging
+# You also need to keep the tmp area around if you are creating a .tar file, because the transfer might 
+#    still be continuing after the script ends.  In this case you need a separate process to scrub your tmp area of old files.
+cleanTemp = False
+
 ###############  EMAIL   ##################
+
 # Deliver a report to these email addresses
 # Use a list of 3-tuples  ("name", "local-part", "domain")
-
 emailAddresses = [("Paul Prestopnik", "prestop", "ucar.edu")] 
 
 # This is the email address that will be used in the "from" field
 fromEmail = emailAddresses[0];
+
 
 #####################################
 ##  AUTHENTICATION          
@@ -92,9 +101,7 @@ fromEmail = emailAddresses[0];
 # This default value is the NCAR CampaignStore 
 # the value was obtained by running:
 # $ globus endpoint search 'NCAR' --filter-owner-id 'ncar@globusid.org' | grep Campaign | cut -f1 -d'      
-
 archiveEndPoint = "6b5ab960-7bbf-11e8-9450-0a6d4e044368"
-
 
 # The refresh token is what lets you use globus without authenticating every time.  We store it in a local file.
 # !!IMPORTANT!!!
@@ -104,12 +111,12 @@ archiveEndPoint = "6b5ab960-7bbf-11e8-9450-0a6d4e044368"
 # e.g. placed in a directory where only you have read/write access
 globusTokenFile = os.path.join(os.path.expanduser("~"),".globus-ral","refresh-tokens.json")
 
+
 ####################################
 ## ARCHIVE RUN CONFIGURATION
 ####################################
 
-######################
-# Archive Date/Time
+#########  Archive Date/Time  #################
 #
 # This is used to set the date/timme of the Archive.
 # The date/time can be substituted into all archive-item strings, by using
@@ -128,8 +135,6 @@ archiveDateTimeString=""
 # You can add additional strptime
 archiveDateTimeFormats=["%Y%m%d","%Y%m%d%H","%Y-%m-%dT%H:%M:%SZ"]
 
-# You may want to keep the tmp area around for debugging
-cleanTemp = True
 
 ####################################
 ## ARCHIVE ITEM CONFIGURATION
@@ -141,6 +146,14 @@ cleanTemp = True
 # transferLabel is optional, and defaults to the item key + "-%Y%m%d"
 # tar_filename is optional and defaults to "".  TAR is only done if tar_filename is a non-empty string
 # transferArgs is a placeholder and not yet implemented.
+
+# use sync_level to specify when files are overwritten:
+
+# "exists"   - If the destination file is absent, do the transfer.
+# "size"     - If destination file size does not match the source, do the transfer.
+# "mtime"    - If source has a newer modififed time than the destination, do the transfer.
+# "checksum" - If source and destination contents differ, as determined by a checksum of their contents, do the transfer. 
+
 archiveItems = {
 "icing-cvs-data":
        {
@@ -148,7 +161,9 @@ archiveItems = {
        "destination": "/gpfs/csfs1/ral/nral0003",
        "transferArgs": "--preserve-mtime",
        "transferLabel": "icing_cvs_data_%Y%m%d",
-       "doZip": False
+       "doZip": False,
+       "sync_level" : "mtime"
+
        },
 "icing-cvs-data2":
        {
@@ -722,9 +737,9 @@ def add_transfer_item(tdata, ii):
     #    print(f"Local file: {entry['name']}")
     
     if os.path.isdir(ii['source']):
-        tdata.add_item(ii['source'], destination, recursive=True)
+        tdata.add_item(ii['source'], destination, recursive=True, sync_level=ii.get("sync_level"))
     else:
-        tdata.add_item(ii['source'], destination)
+        tdata.add_item(ii['source'], destination, sync_level=ii.get("sync_level"))
     logging.debug(f"Adding TransferData item: {ii['source']} -> {destination}") 
 
 
