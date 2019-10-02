@@ -1,6 +1,14 @@
 # manage_externals
 configmaster
 
+# dynamically generated data for testing
+test/data
+
+# emacs tmp files
+*~
+
+# jetbrains
+.idea/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

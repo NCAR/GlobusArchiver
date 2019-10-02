@@ -7,7 +7,6 @@ any globus endpoint.  GlobusArchiver.py is in the [Alpha phase](https://en.wikip
 * ConfigMaster  (installed via manage_externals -- see instructions below)
 * A personal globus account
 
-
 # Creating a Globus Account
 You can find [instructions for creating a personal globus account on the CISL website](https://www2.cisl.ucar.edu/resources/storage-and-file-systems/globus-file-transfers).  
 
@@ -26,6 +25,26 @@ To run GlobusArchiver.py, you will need the Globus Python SDK installed.
 
 As long as you have write permissions in your python3 environment, you can install it yourself using pip.  Instructions online are straightforward:
 https://globus-sdk-python.readthedocs.io/en/stable/installation/
+
+## Keeping the Campaign Store Endpoint Active
+By default the Campaign Store is only active for 24 hours.  You can extend this to 30 days.  First request a certificate by following the instructions on this [CISL web page](https://www2.cisl.ucar.edu/resources/storage-and-file-systems/configuring-globus-unattended-workflows).
+
+When you run the gcert command, part of the output will say something like:
+`Globus certificate created in /glade/u/home/prestop!`
+
+look in that directory, and you will find a file named something like `.prestop-globus.cert`
+
+To make globus available on cheyenne run:
+`module load python
+ncar_pylib`
+
+Now you can activate your endpoint for 30 days.
+
+`globus endpoint activate --delegate-proxy /glade/u/home/prestop/.prestop-globus.cert --proxy-lifetime 720 6b5ab960-7bbf-11e8-9450-0a6d4e044368`
+
+You can confirm the 30 day expiration of your endpoint with this command:
+` globus endpoint activate 6b5ab960-7bbf-11e8-9450-0a6d4e044368`
+
 
 
 ## Installing GlobusArchiver
@@ -46,7 +65,7 @@ globus login
 
 ## Configure your local accesible directories
 
-You will need to edit ~/.globusonline/lta/config-paths to configure which local directories are accessible via your personal endpoint.  [Details are online.](https://docs.globus.org/faq/globus-connect-endpoints/#how_do_i_configure_accessible_directories_on_globus_connect_personal_for_linux)
+You will need to edit ~/.globusonline/lta/config-paths to configure which local directories are accessible via your personal endpoint.  If you are using GlobusArchiver to create TAR files, be sure to include your tmp directory in this file, because this is where tar files will be staged before sending.   [Details are online.](https://docs.globus.org/faq/globus-connect-endpoints/#how_do_i_configure_accessible_directories_on_globus_connect_personal_for_linux)
 
 ## Create your local endpoint
 You only need to do this once.  Once you have your local endpoint created it persists.  You can check to see if you have a global endpoint already using the globus endpoint search:
@@ -81,7 +100,9 @@ globus ls ${LOCAL_EP_ID}:/path/to/local/files
 ```
 
 ## Running GlobusArchiver.py
-First you will want to use the "print_params" argument to create a default configuration file for GlobusArchiver.py
+If you used Archiver.pl in the past, you can use Archiver2GA.py (found in the helper subdirectory), to convert your old Archiver.pl configuration files to GlobusArchiver.py configuration files.
+
+First you will want to use the "print_params" argument to create a default configuration file for GlobusArchiver.py   ConfigMaster treats your configuration file like a python module, and python requires no periods in the configuration name (except the .py), so **please use underscore or dash as separators in your configuration name.**
 
 ```
 GlobusArchiver.py --print_params > GlobusArchiver_my_project.py
@@ -97,21 +118,3 @@ GlobusArchiver.py -c GlobusArchiver_my_project.py -l MyArchive.log -d DEBUG
 
 You will probably get prompted to both authenticate your globus account and activate with the Campaign Store endpoint.  Once you do this the first time, you should not need to do it for 6 months.
 
-# Troubleshooting
-
-# TODO / Wishlist
-Note, that not all of these will necessarily get done.
-
-* Move these TODO's to github issues
-* Test with directories, instead of files & recursive directories, and add examples to the default param file.
-* Add summary emails
-* email user if globus authentication/activation fails
-* Check expected num files / expected file size?
-* Add relative path to transfers
-* Add ability to tar and/or zip prior to transfer
-* Add staging area in case files don't want to get TAR'd zipped in place.
-* Add ability to put multiple different targets into the same tar file.
-* Add database of meta-data?
-* Add setting of mode of files upon transfer
-* Add tar TOC creation/transfer?
-* Add force overwrite, or don't overwrite?  (what does it do now?)
