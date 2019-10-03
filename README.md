@@ -92,6 +92,12 @@ To get the required dependencies, run the following:
 
 # Using the GlobusArchiver
 
+## login to globus
+You can do this from the command line:
+```
+globus login
+```
+
 ## Configure your local accesible directories
 
 You will need to edit ~/.globusonline/lta/config-paths to configure which local directories are accessible via your personal endpoint.  If you are using GlobusArchiver to create TAR files, be sure to include your tmp directory in this file, because this is where tar files will be staged before sending.   [Details are online.](https://docs.globus.org/faq/globus-connect-endpoints/#how_do_i_configure_accessible_directories_on_globus_connect_personal_for_linux)
