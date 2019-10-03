@@ -2,8 +2,10 @@
 Python utility to archive local data via Globus (originally designed for the Campaign Store), but could be used with
 any globus endpoint.  GlobusArchiver.py is in the [Alpha phase](https://en.wikipedia.org/wiki/Software_release_life_cycle#Alpha), and is ready for experimentation by early-adopters. A beta release is planned for the end of June.
 
+**NOTE: Instructions assume bash shell**
+
 ## Requires
-* Python 3
+* Python 3.6 or greater
 * ConfigMaster  (installed via manage_externals -- see instructions below)
 * A personal globus account
 
@@ -13,12 +15,37 @@ You can find [instructions for creating a personal globus account on the CISL we
 # Installing
 
 ## Installing the Globus CLI and globusconnectpersonal
+The Globus CLI is available via the /usr/local anaconda install:
+```
+/usr/local/anaconda3/bin/globus
+```
 
-You will need these installed to start your own local endpoint.  I had SNAT install them in:
-* /opt/globusconnectpersonal-2.3.6/globusconnectpersonal
-* /opt/python3/bin/globus
+If you have a conda installation (e.g. on a mac), you can install like this:
+```
+conda config --add channels conda-forge
+conda install globus-sdk
+conda install globus-cli
+```
 
-The instructions that follow assume these two programs are in your path.  A "quickstart guide" to using Globus Connect Personal is given below, but you can also find more [information about Globus Connect Personal online](https://www.globus.org/globus-connect-personal).
+
+You will need globusconnectpersonal installed to start your own local endpoint.  I had SNAT install it in:
+* /opt/globusconnectpersonal
+
+
+The instructions that follow assume these two programs are in your path.  
+
+Here is one way you can add the globus CLI, globus SDK and globusconnectpersonal to your path.
+
+```
+echo export PATH=/usr/local/anaconda3/bin:\$PATH:/opt/globusconnectpersonal > ~/.globus_env
+```
+now you can source this file to set your environment
+```
+. ~/.globus_env
+```
+or add it to your .bashrc so your path is always set.
+
+A "quickstart guide" to using Globus Connect Personal is given below, but you can also find more [information about Globus Connect Personal online](https://www.globus.org/globus-connect-personal).
 
 ## Installing the Globus Python SDK
 To run GlobusArchiver.py, you will need the Globus Python SDK installed.
@@ -30,21 +57,28 @@ https://globus-sdk-python.readthedocs.io/en/stable/installation/
 By default the Campaign Store is only active for 24 hours.  You can extend this to 30 days.  First request a certificate by following the instructions on this [CISL web page](https://www2.cisl.ucar.edu/resources/storage-and-file-systems/configuring-globus-unattended-workflows).
 
 When you run the gcert command, part of the output will say something like:
-`Globus certificate created in /glade/u/home/prestop!`
+```
+Globus certificate created in /glade/u/home/prestop!
+```
 
 look in that directory, and you will find a file named something like `.prestop-globus.cert`
 
 To make globus available on cheyenne run:
-`module load python
-ncar_pylib`
+```
+module load python
+ncar_pylib
+```
 
 Now you can activate your endpoint for 30 days.
 
-`globus endpoint activate --delegate-proxy /glade/u/home/prestop/.prestop-globus.cert --proxy-lifetime 720 6b5ab960-7bbf-11e8-9450-0a6d4e044368`
+```
+globus endpoint activate --delegate-proxy /glade/u/home/prestop/.prestop-globus.cert --proxy-lifetime 720 6b5ab960-7bbf-11e8-9450-0a6d4e044368
+```
 
 You can confirm the 30 day expiration of your endpoint with this command:
-` globus endpoint activate 6b5ab960-7bbf-11e8-9450-0a6d4e044368`
-
+```
+globus endpoint activate 6b5ab960-7bbf-11e8-9450-0a6d4e044368`
+```
 
 
 ## Installing GlobusArchiver
@@ -52,8 +86,9 @@ You can confirm the 30 day expiration of your endpoint with this command:
 After you have cloned the GlobusArchiver repository, you can run checkout_externals to get any external dependencies:
 
 To get the required dependencies, run the following:
+```
 ./manage_externals/checkout_externals
-
+```
 
 # Using the GlobusArchiver
 
