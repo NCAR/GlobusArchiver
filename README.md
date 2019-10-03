@@ -7,7 +7,6 @@ any globus endpoint.  GlobusArchiver.py is in the [Alpha phase](https://en.wikip
 * ConfigMaster  (installed via manage_externals -- see instructions below)
 * A personal globus account
 
-
 # Creating a Globus Account
 You can find [instructions for creating a personal globus account on the CISL website](https://www2.cisl.ucar.edu/resources/storage-and-file-systems/globus-file-transfers).  
 
@@ -57,6 +56,12 @@ To get the required dependencies, run the following:
 
 
 # Using the GlobusArchiver
+
+## login to globus
+You can do this from the command line:
+```
+globus login
+```
 
 ## Configure your local accesible directories
 
@@ -113,21 +118,3 @@ GlobusArchiver.py -c GlobusArchiver_my_project.py -l MyArchive.log -d DEBUG
 
 You will probably get prompted to both authenticate your globus account and activate with the Campaign Store endpoint.  Once you do this the first time, you should not need to do it for 6 months.
 
-# Troubleshooting
-
-# TODO / Wishlist
-Note, that not all of these will necessarily get done.
-
-* Move these TODO's to github issues
-* Test with directories, instead of files & recursive directories, and add examples to the default param file.
-* Add summary emails
-* email user if globus authentication/activation fails
-* Check expected num files / expected file size?
-* Add relative path to transfers
-* Add ability to tar and/or zip prior to transfer
-* Add staging area in case files don't want to get TAR'd zipped in place.
-* Add ability to put multiple different targets into the same tar file.
-* Add database of meta-data?
-* Add setting of mode of files upon transfer
-* Add tar TOC creation/transfer?
-* Add force overwrite, or don't overwrite?  (what does it do now?)
