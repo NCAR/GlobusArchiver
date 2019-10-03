@@ -78,9 +78,7 @@ import datetime
 tempDir = os.path.join(os.getenv("TMPDIR",os.getenv("HOME",".")), "GlobusArchiver-tmp")
 
 # You may want to keep the tmp area around for debugging
-# You also need to keep the tmp area around if you are creating a .tar file, because the transfer might 
-#    still be continuing after the script ends.  In this case you need a separate process to scrub your tmp area of old files.
-cleanTemp = False
+cleanTemp = True
 
 ###############  EMAIL   ##################
 
@@ -136,6 +134,11 @@ archiveDateTimeFormats=["%Y%m%d","%Y%m%d%H","%Y-%m-%dT%H:%M:%SZ"]
 
 # Set to False to process data but don't actually submit the tasks to Globus
 submitTasks = True
+
+# Number of seconds to wait to see if transfer completed
+# Report error if it doesn't completed after this time
+# Default is 21600 (6 hours)
+transferStatusTimeout = 21600
 
 ####################################
 ## ARCHIVE ITEM CONFIGURATION
@@ -814,6 +817,15 @@ def add_transfer_item(tdata, ii):
         tdata.add_item(ii['source'], destination, sync_level=ii.get("sync_level"))
     logging.debug(f"Adding TransferData item: {ii['source']} -> {destination}") 
 
+def check_task_for_success(transfer, task_id):
+    logging.debug("Waiting for transfer to complete...")
+    timeout = p.opt['transferStatusTimeout']
+
+    # wait for task to report that it completed or it timed out
+    if not transfer.task_wait(task_id, timeout=timeout):
+        log_and_email(f"Transfer timed out after {timeout} seconds", logging.error)
+    else:
+        log_and_email(f"Transfer complete.", logging.info)
 
 def submit_transfer_task(transfer, tdata):
     try:
@@ -828,6 +840,8 @@ def submit_transfer_task(transfer, tdata):
     log_and_email(f"This transfer can be monitored via the Web UI: https://app.globus.org/activity/{task['task_id']}",
                   logging.info)
 
+
+    check_task_for_success(transfer, task['task_id'])
 
 def prepare_email_msg():
     email_msg['From'] = email.headerregistry.Address(*p.opt["fromEmail"])
