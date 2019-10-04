@@ -121,11 +121,11 @@ def main():
             # item to cdDirTar.    cdDir for non tar archiving is going away.
             if "<cdDirTar>" in line:
                 cdDirTar = subDateStrings(line.replace("<cdDirTar>", "").replace("</cdDirTar>", "")).rstrip()
-                output += ' ' * indent + f'"cdDir": "{cdDir}",\n'
+                #output += ' ' * indent + f'"cdDirTar": "{cdDirTar}",\n'
 
             if "<cdDir>" in line:
                 cdDirTar = subDateStrings(line.replace("<cdDir>", "").replace("</cdDir>", "")).rstrip()
-                output += ' ' * indent + f'"cdDir": "{cdDir}",\n'
+                #output += ' ' * indent + f'"cdDirTar": "{cdDirTar}",\n'
 
             if "<expectedNumFiles>" in line:
                 expectedNumFiles = line.replace("<expectedNumFiles>", "").replace("</expectedNumFiles>", "").rstrip()
@@ -149,6 +149,12 @@ def main():
                 dataFormat = line.replace("<dataFormat>", "").replace("</dataFormat>", "").rstrip()
                 output += ' ' * indent + f'"dataFormat": "{dataFormat}",\n'
 
+            if "<warningLevel>" in line:
+                warningLevel = line.replace("<warningLevel>", "").replace("</warningLevel>", "").rstrip()
+                output += ' ' * indent + f'"warningLevel": {warningLevel},\n'
+                
+
+                
             if "<doZip>" in line:
                 doZip = line.replace("<doZip>", "").replace("</doZip>", "").rstrip()
                 doZip = False if doZip.lower() == 'false' else True
@@ -187,10 +193,10 @@ def main():
 
                 # if(os.path.isfile(ii['source']):
                 #   destination = os.path.join(ii['destination'], leaf)
-
+                else: 
+                    if cdDirTar:
+                        output += ' ' * indent + f'"cdDirTar": "{cdDirTar}",\n'
                 output += ' ' * indent + f'"destination": "{destination}",\n'
-                if cdDirTar and tarFilename:
-                    output += ' ' * indent + f'"cdDirTar": "{cdDirTar}",\n'
                 # if doZip was not set in this item but it was set to for all, set doZip to global doZip
                 if not doZipIsSet and doZipAll:
                     output += ' ' * indent + f'"doZip": {doZipAll},\n'
