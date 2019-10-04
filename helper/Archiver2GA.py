@@ -32,6 +32,14 @@ def getDefaultParam():
 
 
 def main():
+
+    if len(sys.argv) < 2:
+        print("USAGE:")
+        print("\tArchiver2GA.py input_file [ral_program]")
+        print("\n\tral_program is used to replace /RAPDMG in destinations")
+        print(f"\tvalid values for ral_program = {valid_programs}\n")
+        sys.exit(1)
+    
     input_file = sys.argv[1]
 
     program = None
