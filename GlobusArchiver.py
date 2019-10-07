@@ -859,23 +859,22 @@ def prepare_email_msg():
 
 def set_email_msg_subject():
     # set subject text based on user specifications
-    errors = ''
+    err_str = ''
     if email_errors == 0 and email_warnings == 0:
-        errors = 'NO PROBLEMS'
+        err_str = 'NO PROBLEMS'
     else:
         if email_errors:
-            errors += f'{email_errors} ERRORS'
+            err_str += f'{email_errors} ERRORS'
         if email_warnings:
-            errors += f'{email_warnings} WARNINGS'
+            err_str += f'{email_warnings} WARNINGS'
 
-    archiveDate = p.opt["archive_date_time"].strftime(p.opt['emailSubjectDateFormat'])
-    host = socket.gethostname()
-    configFile = os.path.basename(p.getConfigFilePath())
+    subject_format = {}
+    subject_format['errors'] = err_str
+    subject_format['archiveDate'] = p.opt["archive_date_time"].strftime(p.opt['emailSubjectDateFormat'])
+    subject_format['host'] = socket.gethostname()
+    subject_format['configFile'] = os.path.basename(p.getConfigFilePath())
 
-    subject = p.opt['emailSubjectFormat']
-    subject = subject.replace('{errors}', errors).replace('{archiveDate}', archiveDate)
-    subject = subject.replace('{host}', host).replace('{configFile}', configFile)
-#    subject += f"GlobusArchiver on {socket.gethostname()} - {os.path.basename(p.getConfigFilePath())} - {date_formatted}"
+    subject = p.opt['emailSubjectFormat'].format(**subject_format)
     email_msg['Subject'] = subject
 
 
