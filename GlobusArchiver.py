@@ -560,7 +560,7 @@ def do_transfers(transfer):
         ii = copy.deepcopy(item_info)
 
         # substitute date/time strings and env variables in item info
-        for ii_key in ("source", "destination" "transfer_label", "tarFileName", "cdDirTar"):
+        for ii_key in ("source", "destination", "transfer_label", "tarFileName", "cdDirTar"):
             if ii.get(ii_key):
                 ii[ii_key] = p.opt["archive_date_time"].strftime(ii[ii_key])
                 ii[ii_key] = os.path.expandvars(ii[ii_key])
