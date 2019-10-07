@@ -31,13 +31,16 @@ def getDefaultParam():
     return output.decode('utf-8')
 
 
-def main():
-
-    if len(sys.argv) < 2:
+def print_usage():
         print("USAGE:")
         print("\tArchiver2GA.py input_file [ral_program]")
         print("\n\tral_program is used to replace /RAPDMG in destinations")
         print(f"\tvalid values for ral_program = {valid_programs}\n")
+
+def main():
+
+    if len(sys.argv) < 2:
+        print_usage()        
         sys.exit(1)
     
     input_file = sys.argv[1]
@@ -45,6 +48,11 @@ def main():
     program = None
     if len(sys.argv) > 2:
         program = sys.argv[2]
+        if program not in valid_programs:
+            print(f"program: {program} is not valid.")
+            print_usage()
+            sys.exit(1)
+            
 
     # archiveItems = {
     #  "hrrr-ak-wrfnat-data":
@@ -87,12 +95,19 @@ def main():
         # get email address
         verificationEmail = None
 
+        tempDir = None
+        
         for line in in_file:
 
             # replace /RAPDMG with the new path to the RAPDMG area
             if program in valid_programs and '/RAPDMG/projects' in line:
                 line = line.replace('/RAPDMG/projects', f'/gpfs/csfs1/ral/{program}')
 
+
+            # get tmp dir
+            if "<tmpDir>" in line:
+                tempDir = line.replace("<tmpDir>",'').replace('</tmpDir>','').rstrip()
+                
             # get email address
             if "<verificationEmail>" in line:
                 verificationEmail = line.replace('<verificationEmail>', '').replace('</verificationEmail>', '').rstrip()
@@ -240,6 +255,15 @@ def main():
                 email_list.append(f'("{user}", "{username}", "{domain}")')
             defaultParam = defaultParam.replace(match.group(1), ','.join(email_list))
 
+    #print(f"tempDir = {tempDir}")
+    #print(f"defaultParams = {defaultParam}")
+    if tempDir is not None:  
+        match = re.search(r'tempDir\s=\s(.*)', defaultParam)#, re.DOTALL)
+        #print(f"match = {match.group(1)}")
+        if match:
+            defaultParam = defaultParam.replace(match.group(1), tempDir)
+
+        
     print(defaultParam)
 
 
