@@ -100,9 +100,11 @@ def main():
         for line in in_file:
 
             # replace /RAPDMG with the new path to the RAPDMG area
-            if program in valid_programs and '/RAPDMG/projects' in line:
-                line = line.replace('/RAPDMG/projects', f'/gpfs/csfs1/ral/{program}')
-
+            if program in valid_programs:
+                if '/RAPDMG/projects' in line:
+                    line = line.replace('/RAPDMG/projects', f'/gpfs/csfs1/ral/{program}')
+                elif '/RAPDMG' in line:
+                    line = line.replace('/RAPDMG', f'/gpfs/csfs1/ral/{program}')
 
             # get tmp dir
             if "<tmpDir>" in line:
@@ -261,7 +263,7 @@ def main():
         match = re.search(r'tempDir\s=\s(.*)', defaultParam)#, re.DOTALL)
         #print(f"match = {match.group(1)}")
         if match:
-            defaultParam = defaultParam.replace(match.group(1), tempDir)
+            defaultParam = defaultParam.replace(match.group(1), f'"{tempDir}"')
 
         
     print(defaultParam)
