@@ -294,11 +294,7 @@ email_warnings = 0
 def safe_mkdirs(d):
     logging.info(f"making dir: {d}")
     if not os.path.exists(d):
-        try:
-            os.makedirs(d, 0o700)
-        except OSError as e:
-            if e.errno != errno.EEXIST:
-                raise
+        os.makedirs(d, 0o700, exist_ok=True)
 
 
 def run_cmd(cmd):
