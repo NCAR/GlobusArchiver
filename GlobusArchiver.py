@@ -3,9 +3,7 @@
 GlobusArchiver.py helps users archive data to the Campaign Store (and other Globus Endpoints)
 '''
 
-# TODO: This doesn't seem to be working - test on 2.7 or 3.5 to see if we get an error.
 import sys
-
 if sys.version_info[0] < 3:
     raise Exception("Must be using Python 3.6 or later")
 if sys.version_info[0] == 3 and sys.version_info[1] < 6:
@@ -780,7 +778,8 @@ def add_transfer_item(tdata, ii):
     if not ii.get("tarFileName"):
         leaf = os.path.basename(ii['source'].rstrip(os.path.sep))
         destination = os.path.join(ii['destination'], leaf)
-
+    else:
+        destination = ii['destination']
     logging.debug(f"Using destination: {destination}")
 
     # Check if destination_dir already exists, and skip if so
