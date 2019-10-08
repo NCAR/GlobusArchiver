@@ -335,7 +335,7 @@ def run_cmd(cmd):
 
 def parse_archive_date_time():
     # Set dateTime based on archiveDayDelta
-    archive_date_time = datetime.datetime.now() + datetime.timedelta(days=p.opt["archiveDayDelta"])
+    archive_date_time = datetime.datetime.now() + datetime.timedelta(days=int(p.opt["archiveDayDelta"]))
 
     # If archiveDateTimeString is set, then try to use that to set dateTime
     if p.opt["archiveDateTimeString"]:
