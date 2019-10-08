@@ -85,7 +85,7 @@ cleanTemp = True
 emailAddresses = [("Paul Prestopnik", "prestop", "ucar.edu")] 
 
 # This is the email address that will be used in the "from" field
-fromEmail = emailAddresses[0];
+fromEmail = emailAddresses[0]
 
 
 #####################################
@@ -372,7 +372,11 @@ def add_transfer_label():
             item_info["transfer_label"] = item_info["transferLabel"]
         else:
             item_info["transfer_label"] = item + "_%y%m%d"
-
+    # substitute date/time strings and env variables in item info
+    # TODO: do I need to do this?
+        item_info["transfer_label"] = p.opt["archive_date_time"].strftime(item_info["transfer_label"])
+        item_info["transfer_label"] = os.path.expandvars(item_info["transfer_label"])
+                                                                    
 
 def randomword(length):
     letters = string.ascii_lowercase
@@ -552,10 +556,13 @@ def do_transfers(transfer):
         ii = copy.deepcopy(item_info)
 
         # substitute date/time strings and env variables in item info
-        for ii_key in ("source", "destination" "transfer_label", "tarFileName", "cdDirTar"):
+        #logging.verbose(f"ii keys: {ii.keys()}")
+        for ii_key in ("source", "destination", "transfer_label", "tarFileName", "cdDirTar"):
             if ii.get(ii_key):
+                logging.verbose(f"swapping {ii_key}: {ii[ii_key]}")
                 ii[ii_key] = p.opt["archive_date_time"].strftime(ii[ii_key])
                 ii[ii_key] = os.path.expandvars(ii[ii_key])
+                logging.verbose(f"after swap {ii_key}: {ii[ii_key]}")
 
         # initialize number of files to 0
         ii['num_files'] = 0
@@ -603,34 +610,35 @@ def do_transfers(transfer):
                     ii["last_glob"] = False
                 else:
                     ii["last_glob"] = True
-                prepare_and_add_transfer(tdata, ii)
+                prepare_and_add_transfer(transfer, tdata, ii)
         else:
             if not ii["glob"] and not os.path.exists(ii["source"]):
                 log_and_email(f"{ii['source']} does not exist. Skipping this archive item.", logging.error)
                 continue
-            prepare_and_add_transfer(tdata, ii)
+            prepare_and_add_transfer(transfer, tdata, ii)
 
     # submit all tasks for transfer
     if p.opt['submitTasks']:
         submit_transfer_task(transfer, tdata)
 
 
-def prepare_and_add_transfer(tdata, item_info):
+def prepare_and_add_transfer(transfer, tdata, item_info):
     logging.info(f"\nTRANSFER -- {item_info['source']}")
     if prepare_transfer(item_info):
         # check_sizes(item_info)  -- this is done during prepare, could be refactored to here?
-        add_transfer_item(tdata, item_info)
+        add_transfer_item(transfer, tdata, item_info)
 
 
 # recursively creates parents to make path
 def make_globus_dir(transfer, path):
+    logging.debug(f"Making path: {path} on endpoing via Globus")
     dest_path = os.path.sep
     for element in path.split(os.path.sep):
         dest_path = os.path.join(dest_path, element)
         try:
-            transfer.operation_ls(p.opt["archiveEndPoint"], dest_path)
+            transfer.operation_ls(p.opt["archiveEndPoint"], path=dest_path)
         except globus_sdk.exc.TransferAPIError as e:
-            transfer.operation_mkdir(dest_path)
+            transfer.operation_mkdir(p.opt["archiveEndPoint"], path=dest_path)
 
 
 def prepare_transfer(ii):
@@ -760,7 +768,7 @@ def log_and_email(msg_str, logfunc):
     add_to_email(logfunc.__name__.upper() + ": " + msg_str)
 
 
-def add_transfer_item(tdata, ii):
+def add_transfer_item(transfer, tdata, ii):
     logging.verbose(f"Entering transfer_item {tdata}, {ii}")
     # get leaf dir from source, and add it to destination
     # if cdDir is set and not tarring data, set leaf
@@ -775,9 +783,12 @@ def add_transfer_item(tdata, ii):
         leaf = os.path.basename(ii['source'].rstrip(os.path.sep))
         destination = os.path.join(ii['destination'], leaf)
     else:
-        destination = ii['destination']
+        destination = os.path.join(ii['destination'], ii["tarFileName"])
+    #    destination = ii['destination']
     logging.debug(f"Using destination: {destination}")
 
+    #make_globus_dir(transfer, destination)
+    
     # Check if destination_dir already exists, and skip if so
     # TODO: add support to overwrite?
     # try:
@@ -806,7 +817,8 @@ def add_transfer_item(tdata, ii):
     # for entry in transfer.operation_ls(local_ep_id):
     #    print(f"Local file: {entry['name']}")
 
-    if os.path.isdir(ii['source']):
+    logging.debug(f"source: {ii['source']}  isdir: {os.path.isdir(ii['source'])} tfn: {ii.get('tarFileName')}")
+    if os.path.isdir(ii['source']): # and not ii.get("tarFileName"):
         tdata.add_item(ii['source'], destination, recursive=True, sync_level=ii.get("sync_level"))
     else:
         tdata.add_item(ii['source'], destination, sync_level=ii.get("sync_level"))
