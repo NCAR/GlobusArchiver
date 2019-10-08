@@ -614,7 +614,7 @@ def do_transfers(transfer):
                 ii["source"] = es
 
                 # if not last item
-                if es_ix != len(expanded_sources):
+                if es_ix != len(expanded_sources) - 1:
                     ii["last_glob"] = False
                 else:
                     ii["last_glob"] = True
