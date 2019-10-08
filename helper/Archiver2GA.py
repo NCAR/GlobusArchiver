@@ -92,6 +92,8 @@ def main():
         doZipAll = False
         # if skipUnderscoreFiles is set for all items, set it for each unless that item has skipUnderscoreFiles = false
         skipUnderscoreFilesAll = False
+        # same for warningLevel
+        warningLevelAll = False
         # get email address
         verificationEmail = None
 
@@ -122,6 +124,7 @@ def main():
                 # it with global  or not
                 doZipIsSet = False
                 skipUnderscoreFilesIsSet = False
+                warningLevelIsSet = False
 
                 # starting a new item, so set everything to None
                 source = None
@@ -176,8 +179,12 @@ def main():
 
             if "<warningLevel>" in line:
                 warningLevel = line.replace("<warningLevel>", "").replace("</warningLevel>", "").rstrip()
-                output += ' ' * indent + f'"warningLevel": {warningLevel},\n'
-                
+                # if outside archiveItem, this line is global warningLevel
+                if not inItem:
+                    warningLevelAll = warningLevel
+                else:
+                    output += ' ' * indent + f'"warningLevel": {warningLevel},\n'
+                    warningLevelIsSet = True
 
                 
             if "<doZip>" in line:
@@ -230,12 +237,17 @@ def main():
                 if not skipUnderscoreFilesIsSet and skipUnderscoreFilesAll:
                     output += ' ' * indent + f'"skipUnderscoreFiles": {skipUnderscoreFilesAll},\n'
 
+                # same for warningLevel
+                if not warningLevelIsSet and warningLevelAll:
+                    output += ' ' * indent + f'"warningLevel": {warningLevelAll},\n'
+
                 output += ' ' * indent + "},\n"
                 item += 1
                 # reset booleans that pertain to a given archiveItem
                 inItem = False
                 doZipIsSet = False
                 skipUnderscoreFilesIsSet = False
+                warningLevelIsSet = False
 
     # replace default values for archiveItems with converted items from input file
     match = re.match(r'.*archiveItems\s=\s\{(.*)\}\n.*', defaultParam, re.DOTALL)
