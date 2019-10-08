@@ -856,7 +856,7 @@ def check_task_for_success(transfer, task_id):
     if hasErrors:
         # cancel task and report error
         transfer.cancel_task(task_id)
-        log_and_email(f"Transfer finished but had errors.", logging.error)
+        log_and_email(f"Transfer had errors.", logging.error)
     elif timeoutCounter >= timeoutFull:
         transfer.cancel_task(task_id)
         log_and_email(f"Transfer timed out after {timeoutFull} seconds", logging.error)
