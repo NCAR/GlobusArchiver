@@ -837,35 +837,23 @@ def check_task_for_success(transfer, task_id):
 
     timeoutFull = p.opt['transferStatusTimeout']
     timeoutIter = 60 if timeoutFull > 60 else timeoutFull
-    logging.debug(f"full: {timeoutFull} and iter: {timeoutIter}")
     timeoutCounter = 0
-    isInProgress = True
-    isSuccess = True
+
     # wait for task to report that it completed or it timed out
     # if any event is still in progress, keep waiting
     # if no events are still in progress and there are errors
     # then cancel the transfer to stop it from retrying
     while timeoutCounter < timeoutFull and not transfer.task_wait(task_id, timeout=timeoutIter):
-        logging.debug("IN WHILE LOOP")
         hasErrors = False
-        isInProgress = False
 
         # check all events for in progress or error status
-        for event in transfer.task_event_list(task_id):
-            if event['code'] == 'PROGRESS':
-                isInProgress = True
-                break
-            elif event['is_error']:
-                hasErrors = True
-
-        if not isInProgress and hasErrors:
-            isSuccess = False
+        if True in [event['is_error'] for event in transfer.task_event_list(task_id)]:
+            hasErrors = True
             break
-        logging.debug(f"INCREMENTING BY {timeoutIter}")
+
         timeoutCounter += timeoutIter
-        logging.debug(f"COUNTER {timeoutCounter}")
-    print(f"OUT. counter = {timeoutCounter} full = {timeoutFull}")
-    if not isSuccess:
+
+    if hasErrors:
         # cancel task and report error
         transfer.cancel_task(task_id)
         log_and_email(f"Transfer finished but had errors.", logging.error)
