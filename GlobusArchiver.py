@@ -87,6 +87,14 @@ emailAddresses = [("Paul Prestopnik", "prestop", "ucar.edu")]
 # This is the email address that will be used in the "from" field
 fromEmail = emailAddresses[0];
 
+# Format of email subject line. Can refer to errors, archiveDate, configFile, and host
+#  notated in curly braces.
+emailSubjectFormat = "{errors} with GlobusArchiver on {host} - {configFile} - {archiveDate}"
+
+# format of date timestamp in email subject. This format will be used to substitute
+# {archiveDate} in the emailSubjectFormat
+emailSubjectDateFormat = "%Y/%m/%d"
+
 
 #####################################
 ##  AUTHENTICATION          
@@ -552,7 +560,7 @@ def do_transfers(transfer):
         ii = copy.deepcopy(item_info)
 
         # substitute date/time strings and env variables in item info
-        for ii_key in ("source", "destination" "transfer_label", "tarFileName", "cdDirTar"):
+        for ii_key in ("source", "destination", "transfer_label", "tarFileName", "cdDirTar"):
             if ii.get(ii_key):
                 ii[ii_key] = p.opt["archive_date_time"].strftime(ii[ii_key])
                 ii[ii_key] = os.path.expandvars(ii[ii_key])
@@ -850,18 +858,23 @@ def prepare_email_msg():
 
 
 def set_email_msg_subject():
-    subject = ''
+    # set subject text based on user specifications
+    err_str = ''
     if email_errors == 0 and email_warnings == 0:
-        subject = 'NO PROBLEMS with '
+        err_str = 'NO PROBLEMS'
     else:
         if email_errors:
-            subject += f'{email_errors} ERRORS '
+            err_str += f'{email_errors} ERRORS'
         if email_warnings:
-            subject += f'{email_warnings} WARNINGS '
-        subject += 'with '
+            err_str += f'{email_warnings} WARNINGS'
 
-    date_formatted = p.opt["archive_date_time"].strftime('%Y-%m-%d')
-    subject += f"GlobusArchiver on {socket.gethostname()} - {os.path.basename(p.getConfigFilePath())} - {date_formatted}"
+    subject_format = {}
+    subject_format['errors'] = err_str
+    subject_format['archiveDate'] = p.opt["archive_date_time"].strftime(p.opt['emailSubjectDateFormat'])
+    subject_format['host'] = socket.gethostname()
+    subject_format['configFile'] = os.path.basename(p.getConfigFilePath())
+
+    subject = p.opt['emailSubjectFormat'].format(**subject_format)
     email_msg['Subject'] = subject
 
 
