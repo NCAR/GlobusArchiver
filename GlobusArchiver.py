@@ -359,18 +359,24 @@ def parse_archive_date_time():
 def add_tar_groups_info():
     for item, item_info in p.opt["archiveItems"].items():
         # for each tar'd item, first assume it is the last/only item in this tar file.
-        if item_info.get("tar_filename"):
+        if item_info.get("tarFileName"):
             item_info["last_tar_in_group"] = True
+            item_info["tar_group_name"] = ""
+        else:
+            continue
 
         # Now look at all other archive items and see if they are TARing to the same target
         past_this_item = False
         for item2, item_info2 in p.opt["archiveItems"].items():
+            if not item_info2.get("tarFileName"):
+                continue
             if item == item2:
                 past_this_item = True
+                item_info["tar_group_name"] += item_info2["transfer_label"]
                 continue
-            if not item_info2.get("tar_filename"):
-                continue
-            if past_this_item and item_info["tar_filename"] == item_info2["tar_filename"]:
+            if item_info["tarFileName"] == item_info2["tarFileName"]:
+                item_info["tar_group_name"] += item_info2["transfer_label"]
+            if past_this_item and item_info["tarFileName"] == item_info2["tarFileName"]:
                 item_info["last_tar_in_group"] = False
 
 
@@ -402,8 +408,8 @@ def handle_configuration():
     # values we are just storing in p.opt vs. actual config params.
     p.opt["archive_date_time"] = archive_date_time
 
-    add_tar_groups_info()
     add_transfer_label()
+    add_tar_groups_info()
 
     # if p.opt["archiveEndPoint"] == "":
     # comp_proc = run_cmd(p.opt["archiveEndPointShellCmd"])
@@ -559,7 +565,7 @@ def do_transfers(transfer):
 
     logging.info("\nBEGINNING PROCESSING OF archiveItems")
     for item, item_info in p.opt["archiveItems"].items():
-        logging.info(f"Transferring {item}")
+        logging.info(f"Starting on {item}")
 
         ii = copy.deepcopy(item_info)
 
@@ -693,8 +699,7 @@ def prepare_transfer(ii):
             log_and_email(f"Source directory is empty: {ii['source']}. SKIPPING!",
                           logging.error)
             return False
-
-        tar_dir = os.path.join(p.opt["tempDir"], f"Item-{ii['transfer_label']}-Tar")
+        tar_dir = os.path.join(p.opt["tempDir"], f"Item-{ii['tar_group_name']}-Tar")
         safe_mkdirs(tar_dir)
         tar_path = os.path.join(tar_dir, ii["tarFileName"])
         # if cdDirTar is set, cd into that directory and create the tarball using the
