@@ -620,7 +620,7 @@ def do_transfers(transfer):
                 ii["source"] = es
 
                 # if not last item
-                if es_ix != len(expanded_sources):
+                if es_ix != len(expanded_sources) - 1:
                     ii["last_glob"] = False
                 else:
                     ii["last_glob"] = True
@@ -839,13 +839,34 @@ def add_transfer_item(transfer, tdata, ii):
 
 def check_task_for_success(transfer, task_id):
     logging.debug("Waiting for transfer to complete...")
-    timeout = p.opt['transferStatusTimeout']
+
+    timeoutFull = p.opt['transferStatusTimeout']
+    timeoutIter = 60 if timeoutFull > 60 else timeoutFull
+    timeoutCounter = 0
 
     # wait for task to report that it completed or it timed out
-    if not transfer.task_wait(task_id, timeout=timeout):
-        log_and_email(f"Transfer timed out after {timeout} seconds", logging.error)
+    # if any event is still in progress, keep waiting
+    # if no events are still in progress and there are errors
+    # then cancel the transfer to stop it from retrying
+    while timeoutCounter < timeoutFull and not transfer.task_wait(task_id, timeout=timeoutIter):
+        hasErrors = False
+
+        # check all events for in progress or error status
+        if True in [event['is_error'] for event in transfer.task_event_list(task_id)]:
+            hasErrors = True
+            break
+
+        timeoutCounter += timeoutIter
+
+    if hasErrors:
+        # cancel task and report error
+        transfer.cancel_task(task_id)
+        log_and_email(f"Transfer had errors.", logging.error)
+    elif timeoutCounter >= timeoutFull:
+        transfer.cancel_task(task_id)
+        log_and_email(f"Transfer timed out after {timeoutFull} seconds", logging.error)
     else:
-        log_and_email(f"Transfer complete.", logging.info)
+        log_and_email(f"Transfer completed successfully.", logging.info)
 
 def submit_transfer_task(transfer, tdata):
     try:
