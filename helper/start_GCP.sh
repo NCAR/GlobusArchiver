@@ -1,14 +1,11 @@
-#!/bin/env bash
+#!/bin/bash
 
-# get my environment
-. $HOME/.bashrc
-# 
+# set up env (path, etc.)
+. ~/.bashrc
+
 process=globusconnectpersonal
 LOG_DIR=$HOME/logs
 
-#param_file=$process.$instance
-
-#cd $PROJ_DIR/model/params
 
 running "$process"
 if [ $? = 1 ]; then
