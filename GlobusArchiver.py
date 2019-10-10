@@ -103,7 +103,7 @@ emailSubjectDateFormat = "%Y/%m/%d"
 # You can define the endpoint directly  
 # This default value is the NCAR CampaignStore 
 # the value was obtained by running:
-# $ globus endpoint search 'NCAR' --filter-owner-id 'ncar@globusid.org' | grep Campaign | cut -f1 -d'      
+# $ globus endpoint search 'NCAR' --filter-owner-id 'ncar@globusid.org' | grep Campaign | cut -f1 -d' '
 archiveEndPoint = "6b5ab960-7bbf-11e8-9450-0a6d4e044368"
 
 # The refresh token is what lets you use globus without authenticating every time.  We store it in a local file.
