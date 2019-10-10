@@ -1,13 +1,16 @@
 # GlobusArchiver
-Python utility to archive local data via Globus (originally designed for the Campaign Store), but could be used with
-any globus endpoint.  GlobusArchiver.py is in the [Alpha phase](https://en.wikipedia.org/wiki/Software_release_life_cycle#Alpha), and is ready for experimentation by early-adopters. A beta release is planned for the end of June.
+GlobusArchiver.py is a python utility to archive local data via Globus.  Originally designed for the Campaign Store, but it could be used with
+any globus endpoint.  
 
 **NOTE: Instructions assume bash shell**
 
 ## Requires
 * Python 3.6 or greater
 * ConfigMaster  (installed via manage_externals -- see instructions below)
-* A personal globus account
+* A personal globus account (instructions below)
+* Globus Python SDK (globus_sdk)
+* Globus CLI
+* GlobusConnectPersonal
 
 # Creating a Globus Account
 You can find [instructions for creating a personal globus account on the CISL website](https://www2.cisl.ucar.edu/resources/storage-and-file-systems/globus-file-transfers).  
@@ -15,7 +18,7 @@ You can find [instructions for creating a personal globus account on the CISL we
 # Installing
 
 ## Installing the Globus CLI and globusconnectpersonal
-The Globus CLI is available via the /usr/local anaconda install:
+The Globus CLI is available in RAL via the /usr/local anaconda install:
 ```
 /usr/local/anaconda3/bin/globus
 ```
@@ -48,13 +51,15 @@ or add it to your .bashrc so your path is always set.
 A "quickstart guide" to using Globus Connect Personal is given below, but you can also find more [information about Globus Connect Personal online](https://www.globus.org/globus-connect-personal).
 
 ## Installing the Globus Python SDK
-To run GlobusArchiver.py, you will need the Globus Python SDK installed.
+To run GlobusArchiver.py, you will need the Globus Python SDK installed.  In RAL this is available as part of the anaconda3 installation:`/usr/local/anaconda3/lib/python3.7/site-packages/glob`
 
-As long as you have write permissions in your python3 environment, you can install it yourself using pip.  Instructions online are straightforward:
+As long as you have write permissions in your python3 environment, you can also install it yourself using pip.  Instructions online are straightforward:
 https://globus-sdk-python.readthedocs.io/en/stable/installation/
 
 ## Keeping the Campaign Store Endpoint Active
-By default the Campaign Store is only active for 24 hours.  You can extend this to 30 days.  First request a certificate by following the instructions on this [CISL web page](https://www2.cisl.ucar.edu/resources/storage-and-file-systems/configuring-globus-unattended-workflows).
+By default the Campaign Store is only active for 24 hours.  You can extend this to 30 days and automate your activation.
+  
+  First request a certificate by following the instructions on this [CISL web page](https://www2.cisl.ucar.edu/resources/storage-and-file-systems/configuring-globus-unattended-workflows).
 
 When you run the gcert command, part of the output will say something like:
 ```
@@ -63,23 +68,25 @@ Globus certificate created in /glade/u/home/prestop!
 
 look in that directory, and you will find a file named something like `.prestop-globus.cert`
 
-To make globus available on cheyenne run:
+You can activate your endpoint using `globus endpoint activate`, but first you need to make globus available on cheyenne:
 ```
 module load python
 ncar_pylib
 ```
 
-Now you can activate your endpoint for 30 days.
-
+Now you can activate your endpoint for 31 days using your certificate
 ```
-globus endpoint activate --delegate-proxy /glade/u/home/prestop/.prestop-globus.cert --proxy-lifetime 720 6b5ab960-7bbf-11e8-9450-0a6d4e044368
+globus endpoint activate --delegate-proxy /glade/u/home/prestop/.prestop-globus.cert --force --proxy-lifetime 744 6b5ab960-7bbf-11e8-9450-0a6d4e044368
 ```
 
 You can confirm the 30 day expiration of your endpoint with this command:
 ```
 globus endpoint activate 6b5ab960-7bbf-11e8-9450-0a6d4e044368`
 ```
-
+Now that you have a certificate you can automate the activation via a line in your crontab.  You can run this on any machine that has globus installed:
+```
+0 0 25 * * /usr/local/python3/bin/globus endpoint activate --delegate-proxy /home/prestop/.prestop-globus.cert --force --proxy-lifetime 744 6b5ab960-7bbf-11e8-9450-0a6d4e044368 > /home/prestop/logs/globus-activate.log  2>&1
+```
 
 ## Installing GlobusArchiver
 
@@ -90,7 +97,7 @@ To get the required dependencies, run the following:
 ./manage_externals/checkout_externals
 ```
 
-# Using the GlobusArchiver
+# Using the Globus with the Campaign Store
 
 ## login to globus
 You can do this from the command line:
@@ -137,7 +144,10 @@ globus ls ${LOCAL_EP_ID}:/path/to/local/files
 ## Running GlobusArchiver.py
 If you used Archiver.pl in the past, you can use Archiver2GA.py (found in the helper subdirectory), to convert your old Archiver.pl configuration files to GlobusArchiver.py configuration files.
 
-First you will want to use the "print_params" argument to create a default configuration file for GlobusArchiver.py   ConfigMaster treats your configuration file like a python module, and python requires no periods in the configuration name (except the .py), so **please use underscore or dash as separators in your configuration name.**
+If you do not have an old Archiver.pl configuration file, you will need to create one from scratch.
+First you will want to use the "print_params" argument to create a default configuration file for GlobusArchiver.py   
+
+ConfigMaster treats your configuration file like a python module, and python requires no periods in the configuration name (except the .py), so **please use underscore or dash as separators in your configuration name.**
 
 ```
 GlobusArchiver.py --print_params > GlobusArchiver_my_project.py
@@ -151,5 +161,151 @@ Finally run GlobusArchiver.py with your configuration file.  The first time you 
 GlobusArchiver.py -c GlobusArchiver_my_project.py -l MyArchive.log -d DEBUG
 ```
 
-You will probably get prompted to both authenticate your globus account and activate with the Campaign Store endpoint.  Once you do this the first time, you should not need to do it for 6 months.
+You will probably get prompted to authenticate your globus account.  If you have not already activated the Campaign Store endpoint, you will also get prompted for that.
 
+## The GlobusArchiver.py configuration file
+
+GlobusArchiver.py is self-documenting.  Running --print_params will get you the latest version of the configuration file. 
+The configuration file has comments to explain how GlobusArchiver works.  Here is the output of GlobusArchiver.py --print_params as of October 10, 2019:
+
+```python
+$ ./GlobusArchiver.py --print_params
+#!/usr/bin/env python
+
+
+######################################
+#          GLOBUS CONFIGURATION
+######################################
+
+
+# Imports used in the configuration file
+import os
+import socket
+import datetime
+
+
+#####################################
+## GENERAL CONFIGURATION
+#####################################
+ 
+###############  TEMP DIR   ##################
+
+# tempDir is used for:
+#     - Staging Location for .tar Files
+# Default, $TMPDIR if it is defined, otherwise $HOME if defined, otherwise '.'.
+tempDir = os.path.join(os.getenv("TMPDIR",os.getenv("HOME",".")), "GlobusArchiver-tmp")
+
+# You may want to keep the tmp area around for debugging
+cleanTemp = True
+
+###############  EMAIL   ##################
+
+# Deliver a report to these email addresses
+# Use a list of 3-tuples  ("name", "local-part", "domain")
+emailAddresses = [("Paul Prestopnik", "prestop", "ucar.edu")] 
+
+# This is the email address that will be used in the "from" field
+fromEmail = emailAddresses[0]
+
+# Format of email subject line. Can refer to errors, archiveDate, configFile, and host
+#  notated in curly braces.
+emailSubjectFormat = "{errors} with GlobusArchiver on {host} - {configFile} - {archiveDate}"
+
+# format of date timestamp in email subject. This format will be used to substitute
+# {archiveDate} in the emailSubjectFormat
+emailSubjectDateFormat = "%Y/%m/%d"
+
+
+#####################################
+##  AUTHENTICATION          
+#####################################
+
+# You can define the endpoint directly  
+# This default value is the NCAR CampaignStore 
+# the value was obtained by running:
+# $ globus endpoint search 'NCAR' --filter-owner-id 'ncar@globusid.org' | grep Campaign | cut -f1 -d'      
+archiveEndPoint = "6b5ab960-7bbf-11e8-9450-0a6d4e044368"
+
+# The refresh token is what lets you use globus without authenticating every time.  We store it in a local file.
+# !!IMPORTANT!!!
+# You need to protect your Refresh Tokens. 
+# They are an infinite lifetime credential to act as you.
+# Like passwords, they should only be stored in secure locations.
+# e.g. placed in a directory where only you have read/write access
+globusTokenFile = os.path.join(os.path.expanduser("~"),".globus-ral","refresh-tokens.json")
+
+
+####################################
+## ARCHIVE RUN CONFIGURATION
+####################################
+
+#########  Archive Date/Time  #################
+#
+# This is used to set the date/time of the Archive.
+# The date/time can be substituted into all archive-item strings, by using
+# standard strftime formatting.
+
+# This value is added (so use a negaative number to assign a date in the past) 
+# to now() to find the archive date/time.
+archiveDayDelta=-2
+
+# If this is set, it overrides the archiveDayDelta.  If you want to use
+# archiveDayDelta to set the Archive Date/Time, make sure this is 
+# set to an empty string.  This string must be parseable by one of the
+# format strings defined in archiveDateTimeFormats.
+archiveDateTimeString=""
+
+# You can add additional strptime
+archiveDateTimeFormats=["%Y%m%d","%Y%m%d%H","%Y-%m-%dT%H:%M:%SZ"]
+
+# Set to False to process data but don't actually submit the tasks to Globus
+submitTasks = True
+
+# Number of seconds to wait to see if transfer completed
+# Report error if it doesn't completed after this time
+# Default is 21600 (6 hours)
+transferStatusTimeout = 21600
+
+####################################
+## ARCHIVE ITEM CONFIGURATION
+####################################
+
+# TODO: transfer-args are currently ignored
+
+# doZip is optional, and defaults to False
+# transferLabel is optional, and defaults to the item key + "-%Y%m%d"
+# tar_filename is optional and defaults to "".  TAR is only done if tar_filename is a non-empty string
+# transferArgs is a placeholder and not yet implemented.
+
+# use sync_level to specify when files are overwritten:
+
+# "exists"   - If the destination file is absent, do the transfer.
+# "size"     - If destination file size does not match the source, do the transfer.
+# "mtime"    - If source has a newer modififed time than the destination, do the transfer.
+# "checksum" - If source and destination contents differ, as determined by a checksum of their contents, do the transfer. 
+
+archiveItems = {
+"icing-cvs-data":
+       {
+       "source": "/d1/prestop/backup/test1",
+       "destination": "/gpfs/csfs1/ral/nral0003",
+       "transferArgs": "--preserve-mtime",
+       "transferLabel": "icing_cvs_data_%Y%m%d",
+       "doZip": False,
+       "sync_level" : "mtime"
+
+       },
+"icing-cvs-data2":
+       {
+       "source": "/d1/prestop/backup/test2",
+       "destination": "/gpfs/csfs1/ral/nral0003",
+       "transferArgs": "--preserve-mtime",
+       "transferLabel": "icing_cvs_data_%Y%m%d",
+       "doZip": False,
+       "tarFileName": "test2.tar",
+       "cdDirTar": "/d1/prestop/backup",
+       "expectedNumFiles": 3,
+       "expectedFileSize": 1024
+       }
+}
+```
