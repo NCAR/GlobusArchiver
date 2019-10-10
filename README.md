@@ -85,7 +85,7 @@ globus endpoint activate 6b5ab960-7bbf-11e8-9450-0a6d4e044368`
 ```
 Now that you have a certificate you can automate the activation via a line in your crontab.  You can run this on any machine that has globus installed:
 ```
-0 0 25 * * /usr/local/python3/bin/globus endpoint activate --delegate-proxy /home/prestop/.prestop-globus.cert --force --proxy-lifetime 744 6b5ab960-7bbf-11e8-9450-0a6d4e044368 > /home/prestop/logs/globus-activate.log  2>&1
+0    0    25    *    *    /usr/local/anaconda3/bin/globus endpoint activate --delegate-proxy /home/prestop/.prestop-globus.cert --force --proxy-lifetime 744 6b5ab960-7bbf-11e8-9450-0a6d4e044368 > /home/prestop/logs/globus-activate.log  2>&1
 ```
 
 ## Installing GlobusArchiver
