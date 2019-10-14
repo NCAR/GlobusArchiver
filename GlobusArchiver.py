@@ -844,6 +844,7 @@ def check_task_for_success(transfer, task_id):
     timeoutIter = 60 if timeoutFull > 60 else timeoutFull
     timeoutCounter = 0
 
+    hasErrors = False
     # wait for task to report that it completed or it timed out
     # if any event is still in progress, keep waiting
     # if no events are still in progress and there are errors
