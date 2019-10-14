@@ -900,10 +900,11 @@ def set_email_msg_subject():
     err_str = ''
     if email_errors == 0 and email_warnings == 0:
         err_str = 'NO PROBLEMS'
-    else:
-        if email_errors:
+    elif email_errors > 0 and email_warnings > 0:
+        err_str = f'{email_errors} ERRORS & {email_warnings} WARNINGS'
+    elif email_errors:
             err_str += f'{email_errors} ERRORS'
-        if email_warnings:
+    elif email_warnings:
             err_str += f'{email_warnings} WARNINGS'
 
     subject_format = {}
