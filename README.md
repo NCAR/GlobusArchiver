@@ -141,6 +141,13 @@ You can check that your local endpoint is working:
 globus ls ${LOCAL_EP_ID}:/path/to/local/files
 ```
 
+## Keeping globusconnectpersonal running
+You need to keep globusconnectpersonal running on every machine you want to have automated transfers on.  One way to do this is to use the [start_GCP.sh](https://github.com/NCAR/GlobusArchiver/blob/master/helper/start_GCP.sh) script that is in the helper directory in this repository.  Here is an example line for your crontab:
+```
+# make sure GCP is running
+*/5 *   *    *    *      start_GCP.sh >> $LOG_DIR/start_gcp.cron.log 2>&1
+```
+
 ## Running GlobusArchiver.py
 If you used Archiver.pl in the past, you can use Archiver2GA.py (found in the helper subdirectory), to convert your old Archiver.pl configuration files to GlobusArchiver.py configuration files.
 
@@ -311,3 +318,32 @@ archiveItems = {
        }
 }
 ```
+
+# Running GlobusArchiver.py from crontab
+You can run GlobusArchiver.py from cron.   I use a simple script (found in the helper subdir) [run_GlobusArchiver.sh](https://github.com/NCAR/GlobusArchiver/blob/master/helper/start_GCP.sh).  You can call it from cron like this:
+```
+30 1 * * * run_GlobusArchiver.sh /home/prestop/archiverConfs/GA_CONF-hrrr-ak.py | /rap/bin/LogFilter -d ~/logs -p GlobusArchiver -i hrrr-ak
+```
+NOTE: This pipe only sends stdout to LogFilter.  Stderr will not get redirected, so make sure you have your MAILTO set correctly in your crontab.
+
+
+# Troubleshooting
+## Syntax Error (python version problem)
+If you are using a version of python prior to 3.6, you will get a syntax error when you try to run.  Something like this:
+
+```
+home/lisag/git/GlobusArchiver/GlobusArchiver.py --config /home/lisag/archiving_config/old_config_files/Globus_Archiver_CONVWX_HOST_1directory_that_works.py  -d VERBOSE -l /home/lisag/logs/20191014_1_directory_test.log
+  File "/home/lisag/git/GlobusArchiver/GlobusArchiver.py", line 50
+    print(f"{os.path.basename(__file__)} needs ConfigMaster to run.")
+````
+
+This is because python can't parse the f-string.  You need to make sure that the python in your path is version >= 3.6.
+
+# Tips
+## Logging
+The Globus python SDK produces a lot of logging which is interspersed with the the loggging produced directly by GlobusArchiver.py.   Logging from the Globus python SDK has an instance identifier in the log line, so you can isolate lines from the log file using grep:
+```
+# Get only the log messages produced by GlobusArchiver.py, and ignore log messages produced by the Globus python SDK.
+grep -v instance $LOGFILE
+```
+There can still be a lot of log messages coming from python libraries.  More user control over this is desired: https://github.com/NCAR/GlobusArchiver/issues/27

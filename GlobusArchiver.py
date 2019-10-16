@@ -905,6 +905,7 @@ def submit_transfer_task(transfer, tdata):
         logging.fatal(e)
         return
 
+    add_to_email("\n")
     log_and_email(f"Task ID: {task['task_id']}", logging.info)
     log_and_email(f"This transfer can be monitored via the Web UI: https://app.globus.org/activity/{task['task_id']}",
                   logging.info)
