@@ -339,3 +339,11 @@ home/lisag/git/GlobusArchiver/GlobusArchiver.py --config /home/lisag/archiving_c
 
 This is because python can't parse the f-string.  You need to make sure that the python in your path is version >= 3.6.
 
+# Tips
+## Logging
+The Globus python SDK produces a lot of logging which is interspersed with the the loggging produced directly by GlobusArchiver.py.   Logging from the Globus python SDK has an instance identifier in the log line, so you can isolate lines from the log file using grep:
+```
+# Get only the log messages produced by GlobusArchiver.py, and ignore log messages produced by the Globus python SDK.
+grep -v instance $LOGFILE
+```
+There can still be a lot of log messages coming from python libraries.  More user control over this is desired: https://github.com/NCAR/GlobusArchiver/issues/27
