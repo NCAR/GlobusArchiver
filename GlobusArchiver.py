@@ -144,7 +144,7 @@ submitTasks = True
 # Number of seconds to wait to see if transfer completed
 # Report error if it doesn't completed after this time
 # Default is 21600 (6 hours)
-transferStatusTimeout = 21600
+transferStatusTimeout = 6*60*60
 
 ####################################
 ## ARCHIVE ITEM CONFIGURATION
@@ -385,7 +385,7 @@ def add_transfer_label():
         if item_info.get("transferLabel"):
             item_info["transfer_label"] = item_info["transferLabel"]
         else:
-            item_info["transfer_label"] = item + "_%y%m%d"
+            item_info["transfer_label"] = item + "_%Y%m%d"
     # substitute date/time strings and env variables in item info
     # TODO: do I need to do this?
         item_info["transfer_label"] = p.opt["archive_date_time"].strftime(item_info["transfer_label"])
@@ -624,12 +624,16 @@ def do_transfers(transfer):
                     ii["last_glob"] = False
                 else:
                     ii["last_glob"] = True
-                prepare_and_add_transfer(transfer, tdata, ii)
+                if not prepare_and_add_transfer(transfer, tdata, ii):
+                    log_and_email(f"Prepare/Add of transfer item failed.", logging.error)
+                    continue
         else:
             if not ii["glob"] and not os.path.exists(ii["source"]):
                 log_and_email(f"{ii['source']} does not exist. Skipping this archive item.", logging.error)
                 continue
-            prepare_and_add_transfer(transfer, tdata, ii)
+            if not prepare_and_add_transfer(transfer, tdata, ii):
+                log_and_email(f"Preparation/add of transfer item failed.", logging.error)
+                continue
 
     # submit all tasks for transfer
     if p.opt['submitTasks']:
@@ -641,6 +645,9 @@ def prepare_and_add_transfer(transfer, tdata, item_info):
     if prepare_transfer(item_info):
         # check_sizes(item_info)  -- this is done during prepare, could be refactored to here?
         add_transfer_item(transfer, tdata, item_info)
+        return True
+    else:
+        return False
 
 
 # recursively creates parents to make path
@@ -667,7 +674,7 @@ def prepare_transfer(ii):
     if ii.get('cdDirTar') and ii['source'].find(ii['cdDirTar']) == -1:
         log_and_email(f"source {ii['source']} must contain cdDirTar ({ii['cdDirTar']}. SKIPPING!",
                       logging.error)
-        return
+        return False
 
     # Don't need this?  transfer should automatically make dirs as needed.
     # try:
@@ -688,6 +695,7 @@ def prepare_transfer(ii):
         cmd += "-S .gz ";  # force .gz suffix in case of differing gzip version
         cmd += ii['source'];
         logging.debug(f"ZIPing file via cmd: {cmd}")
+        # TODO: Checking for no run_cmd is not enough?    I think we are stil getting an object with stdout/err even if the cmd failed.  Need to check return code.
         if not run_cmd(cmd):
             return False
         if os.path.isfile(ii['source']):
@@ -841,7 +849,19 @@ def check_task_for_success(transfer, task_id):
     logging.debug("Waiting for transfer to complete...")
 
     timeoutFull = p.opt['transferStatusTimeout']
-    timeoutIter = 60 if timeoutFull > 60 else timeoutFull
+
+    # timeoutInterval - If there is an error, it will take this long before we give up.
+    timeoutInterval = 1*60  # seconds
+
+    #pollingInterval - Once the task has completed, it will take up to this long before we realize it.
+    #                - You also get several lines in your log at this interval while your task is in progress.
+    pollingInterval = 1*60  # seconds
+
+    # condition intervals
+    pollingInterval = min(timeoutInterval, pollingInterval)
+    timeoutInterval = min(timeoutInterval, timeoutFull)
+
+
     timeoutCounter = 0
 
     hasErrors = False
@@ -849,20 +869,27 @@ def check_task_for_success(transfer, task_id):
     # if any event is still in progress, keep waiting
     # if no events are still in progress and there are errors
     # then cancel the transfer to stop it from retrying
-    while timeoutCounter < timeoutFull and not transfer.task_wait(task_id, timeout=timeoutIter):
-        hasErrors = False
+    while not hasErrors and timeoutCounter < timeoutFull and not transfer.task_wait(task_id, timeout=timeoutInterval, polling_interval=pollingInterval):
 
-        # check all events for in progress or error status
-        if True in [event['is_error'] for event in transfer.task_event_list(task_id)]:
+        # get any errors in the event list so we can go ahead and give up.
+        for event in transfer.task_event_list(task_id, filter=["is_error:1"]):
+            logging.error(f"Task Event indicates an error: {event}")
             hasErrors = True
-            break
+            
+        # check all events for in progress or error status
+        #for event in transfer.task_event_list(task_id, filter=["is_error:1"]):
+        #    print(f"retrieved event: {event}")
+        #    if event['is_error']:
+        #        hasErrors = True
+        #if True in [event['is_error'] for event in transfer.task_event_list(task_id)]:
+        #    hasErrors = True
 
-        timeoutCounter += timeoutIter
+        timeoutCounter += timeoutInterval
 
     if hasErrors:
         # cancel task and report error
         transfer.cancel_task(task_id)
-        log_and_email(f"Transfer had errors.", logging.error)
+        log_and_email(f"Transfer had errors.  Task has been cancelled.", logging.error)
     elif timeoutCounter >= timeoutFull:
         transfer.cancel_task(task_id)
         log_and_email(f"Transfer timed out after {timeoutFull} seconds", logging.error)
