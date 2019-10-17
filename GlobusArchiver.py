@@ -48,7 +48,7 @@ try:
     from ConfigMaster import ConfigMaster
 except  ImportError:
     print(f"{os.path.basename(__file__)} needs ConfigMaster to run.")
-    print(f"Plase review README.md for details on how to run manage_externals")
+    print(f"Please review README.md for details on how to run manage_externals")
     exit(1)
 
 defaultParams = """
