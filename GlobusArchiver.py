@@ -67,11 +67,24 @@ import datetime
 #####################################
 ## GENERAL CONFIGURATION
 #####################################
- 
+
+# GlobusArchiver.py submits one task to Globus
+# This is used to identify the task on the Globus Web API
+# Through painful trial and error, I have determined this cannot have a period in it.
+
+taskLabel =  f"GA-unnamed-%Y%m%d"
+
+# I would recommend uncommenting the taskLabel definition below, but because of the way ConfigMaster currently works
+# I cannot have __file__ in the default params.
+
+# This uses the config file name as part of the label, but strips the extension and replaces '.' with '_'
+#taskLabel =  f"{(os.path.splitext(os.path.basename(__file__))[0]).replace('.','_')}-%Y%m%d"
+
 ###############  TEMP DIR   ##################
 
 # tempDir is used for:
 #     - Staging Location for .tar Files
+
 # Default, $TMPDIR if it is defined, otherwise $HOME if defined, otherwise '.'.
 tempDir = os.path.join(os.getenv("TMPDIR",os.getenv("HOME",".")), "GlobusArchiver-tmp")
 
@@ -135,8 +148,12 @@ archiveDayDelta=-2
 # format strings defined in archiveDateTimeFormats.
 archiveDateTimeString=""
 
-# You can add additional strptime
+# You can add additional strptime formats
 archiveDateTimeFormats=["%Y%m%d","%Y%m%d%H","%Y-%m-%dT%H:%M:%SZ"]
+
+#####################################
+#  ARCHIVE SUBMISSION CONFIGURATION
+#####################################
 
 # Set to False to process data but don't actually submit the tasks to Globus
 submitTasks = True
@@ -149,12 +166,13 @@ transferStatusTimeout = 6*60*60
 ####################################
 ## ARCHIVE ITEM CONFIGURATION
 ####################################
+# TODO: better documentation of these fields in archiveItems
 
-# TODO: transfer-args are currently ignored
+# source 
 
-# doZip is optional, and defaults to False
-# transferLabel is optional, and defaults to the item key + "-%Y%m%d"
+# doZip        is optional, and defaults to False
 # tar_filename is optional and defaults to "".  TAR is only done if tar_filename is a non-empty string
+#              if multiple archiveItems have the same tar_filename, 
 # transferArgs is a placeholder and not yet implemented.
 
 # use sync_level to specify when files are overwritten:
@@ -169,23 +187,18 @@ archiveItems = {
        {
        "source": "/d1/prestop/backup/test1",
        "destination": "/gpfs/csfs1/ral/nral0003",
-       "transferArgs": "--preserve-mtime",
-       "transferLabel": "icing_cvs_data_%Y%m%d",
        "doZip": False,
-       "sync_level" : "mtime"
-
+       "sync_level" : "mtime",
        },
 "icing-cvs-data2":
        {
        "source": "/d1/prestop/backup/test2",
        "destination": "/gpfs/csfs1/ral/nral0003",
-       "transferArgs": "--preserve-mtime",
-       "transferLabel": "icing_cvs_data_%Y%m%d",
        "doZip": False,
        "tarFileName": "test2.tar",
        "cdDirTar": "/d1/prestop/backup",
        "expectedNumFiles": 3,
-       "expectedFileSize": 1024
+       "expectedFileSize": 1024,
        }
 }
 """
@@ -357,7 +370,7 @@ def parse_archive_date_time():
 
 
 def add_tar_groups_info():
-    for item, item_info in p.opt["archiveItems"].items():
+    for item_key, item_info in p.opt["archiveItems"].items():
         # for each tar'd item, first assume it is the last/only item in this tar file.
         if item_info.get("tarFileName"):
             item_info["last_tar_in_group"] = True
@@ -367,29 +380,29 @@ def add_tar_groups_info():
 
         # Now look at all other archive items and see if they are TARing to the same target
         past_this_item = False
-        for item2, item_info2 in p.opt["archiveItems"].items():
+        for item_key2, item_info2 in p.opt["archiveItems"].items():
             if not item_info2.get("tarFileName"):
                 continue
-            if item == item2:
+            if item_key == item_key2:
                 past_this_item = True
-                item_info["tar_group_name"] += item_info2["transfer_label"]
+                item_info["tar_group_name"] += item_key2
                 continue
             if item_info["tarFileName"] == item_info2["tarFileName"]:
-                item_info["tar_group_name"] += item_info2["transfer_label"]
+                item_info["tar_group_name"] += item_key2
             if past_this_item and item_info["tarFileName"] == item_info2["tarFileName"]:
                 item_info["last_tar_in_group"] = False
 
-
-def add_transfer_label():
-    for item, item_info in p.opt["archiveItems"].items():
-        if item_info.get("transferLabel"):
-            item_info["transfer_label"] = item_info["transferLabel"]
-        else:
-            item_info["transfer_label"] = item + "_%Y%m%d"
+# I don't think we need the item_label anymore
+#def add_item_label():
+#    for item, item_info in p.opt["archiveItems"].items():
+#        if item_info.get("itemLabel"):
+#            item_info["item_label"] = item_info["itemLabel"]
+#        else:
+#            item_info["item_label"] = item + "_%Y%m%d"
     # substitute date/time strings and env variables in item info
     # TODO: do I need to do this?
-        item_info["transfer_label"] = p.opt["archive_date_time"].strftime(item_info["transfer_label"])
-        item_info["transfer_label"] = os.path.expandvars(item_info["transfer_label"])
+#        item_info["item_label"] = p.opt["archive_date_time"].strftime(item_info["item_label"])
+#        item_info["item_label"] = os.path.expandvars(item_info["item_label"])
                                                                     
 
 def randomword(length):
@@ -406,20 +419,14 @@ def handle_configuration():
 
     # I think we can do this.   Let's use snake_case vs. CamelCase to distinguish between
     # values we are just storing in p.opt vs. actual config params.
+    # NOTE/TODO:  I wish I hadn't used snake vs. Camel for this.  primarily there is no
+    # distinction between the two for a single word.  Instead I could have used a leading underscore to distinguish. 
     p.opt["archive_date_time"] = archive_date_time
 
-    add_transfer_label()
+    #add_item_label()
     add_tar_groups_info()
 
-    # if p.opt["archiveEndPoint"] == "":
-    # comp_proc = run_cmd(p.opt["archiveEndPointShellCmd"])
-    # print(comp_proc)
-    # stdout comes back as a series of octets, so decode to a normal string and strip endline
-    # EP = comp_proc.stdout.decode('UTF-8').strip('\n')
-    # logging.debug(f"Got EndPoint via archiveEndPointShellCmd: {EP}")
-    # p.opt["archiveEndPoint"] = EP
-    # logging.debug("")
-
+    # TODO: make this pretty: https://stackoverflow.com/questions/3229419/how-to-pretty-print-nested-dictionaries
     logging.debug("After handle_configuration(), configuration looks like this:")
     logging.debug(f"{p.opt}")
 
@@ -537,31 +544,19 @@ def get_transfer_client():
 
 
 def do_transfers(transfer):
-    # print out a directory listing from an endpoint
-    # print("Looking at archive end point")
-    # for entry in transfer.operation_ls(p.opt["archiveEndPoint"], path='/~/'):
-    #    print(entry['name'] + ('/' if entry['type'] == 'dir' else ''))
-
-    # revoke the access token that was just used to make requests against
-    # the Transfer API to demonstrate that the RefreshTokenAuthorizer will
-    # automatically get a new one
-    # auth_client.oauth2_revoke_token(authorizer.access_token)
-    # Allow a little bit of time for the token revocation to settle
-    # time.sleep(1)
-    # Verify that the access token is no longer valid
-    # token_status = auth_client.oauth2_validate_token(
-    #    transfer_tokens['access_token'])
-    # assert token_status['active'] is False, 'Token was expected to be invalid.'
-
-    # print('\nDoing a second directory listing with a new access token:')
-    # for entry in transfer.operation_ls(p.opt["archiveEndPoint"], path='/~/'):
-    #    print(entry['name'] + ('/' if entry['type'] == 'dir' else ''))
 
     local_ep = globus_sdk.LocalGlobusConnectPersonal()
     local_ep_id = local_ep.endpoint_id
 
-    # tdata = globus_sdk.TransferData(transfer, local_ep_id, p.opt["archiveEndPoint"], label=ii["transfer_label"])
-    tdata = globus_sdk.TransferData(transfer, local_ep_id, p.opt["archiveEndPoint"])
+    p.opt["task_label"] = p.opt["archive_date_time"].strftime(p.opt["taskLabel"])
+
+    #p.opt["task_label"] = p.opt["task_label"].decode('utf-8')
+
+    logging.info(f"Creating TransferData object with label '{p.opt['task_label']}'")
+    logging.info(f"task_label -  {type(p.opt['task_label'])}")
+    
+    tdata = globus_sdk.TransferData(transfer, local_ep_id, p.opt["archiveEndPoint"], label=p.opt["task_label"])
+    #tdata = globus_sdk.TransferData(transfer, local_ep_id, p.opt["archiveEndPoint"])
 
     logging.info("\nBEGINNING PROCESSING OF archiveItems")
     for item, item_info in p.opt["archiveItems"].items():
@@ -571,7 +566,7 @@ def do_transfers(transfer):
 
         # substitute date/time strings and env variables in item info
         #logging.verbose(f"ii keys: {ii.keys()}")
-        for ii_key in ("source", "destination", "transfer_label", "tarFileName", "cdDirTar"):
+        for ii_key in ("source", "destination", "tarFileName", "cdDirTar"):
             if ii.get(ii_key):
                 logging.verbose(f"swapping {ii_key}: {ii[ii_key]}")
                 ii[ii_key] = p.opt["archive_date_time"].strftime(ii[ii_key])
@@ -606,7 +601,6 @@ def do_transfers(transfer):
                 if os.path.isdir(es):
                     dir_glob = True
             if file_glob and dir_glob:
-                # TODO: Copied this from Archiver.pl Is this still true?  
                 log_and_email(
                     f"glob: {ii['source']} expands to files and dirs.  Not allowed.  Skipping this archive item.",
                     logging.error)
@@ -643,7 +637,7 @@ def do_transfers(transfer):
 def prepare_and_add_transfer(transfer, tdata, item_info):
     logging.info(f"\nTRANSFER -- {item_info['source']}")
     if prepare_transfer(item_info):
-        # check_sizes(item_info)  -- this is done during prepare, could be refactored to here?
+        # TODO: check_sizes(item_info)  -- this is done during prepare, could be refactored to here?
         add_transfer_item(transfer, tdata, item_info)
         return True
     else:
@@ -780,7 +774,7 @@ def log_and_email(msg_str, logfunc):
     global email_warnings
 
     # add to error/warning counter to modify email subject
-    if logfunc == logging.error:
+    if logfunc == logging.error or logfunc == logging.critical:
         email_errors = email_errors + 1
     elif logfunc == logging.warning:
         email_warnings = email_warnings + 1
@@ -901,8 +895,8 @@ def submit_transfer_task(transfer, tdata):
         logging.info(f"Submitting transfer task - {tdata}")
         task = transfer.submit_transfer(tdata)
     except globus_sdk.exc.TransferAPIError as e:
-        log_and_email("Transfer task submission failed", logging.fatal)
-        logging.fatal(e)
+        log_and_email("Transfer task submission failed", logging.critical)
+        logging.critical(e)
         return
 
     add_to_email("\n")
@@ -962,7 +956,7 @@ def main():
         p.parser.print_help()
         exit(0)
 
-    pp = pprint.PrettyPrinter()
+    #pp = pprint.PrettyPrinter()
     logging.info(f"Read this configuration:")
     for line in p.getParamsString().splitlines():
         # logging.info(pp.pformat(line))
