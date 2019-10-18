@@ -148,7 +148,7 @@ You need to keep globusconnectpersonal running on every machine you want to have
 */5 *   *    *    *      start_GCP.sh >> $LOG_DIR/start_gcp.cron.log 2>&1
 ```
 
-## Running GlobusArchiver.py
+# Running GlobusArchiver.py
 If you used Archiver.pl in the past, you can use Archiver2GA.py (found in the helper subdirectory), to convert your old Archiver.pl configuration files to GlobusArchiver.py configuration files.
 
 If you do not have an old Archiver.pl configuration file, you will need to create one from scratch.
@@ -176,7 +176,6 @@ GlobusArchiver.py is self-documenting.  Running --print_params will get you the 
 The configuration file has comments to explain how GlobusArchiver works.  Here is the output of GlobusArchiver.py --print_params as of October 10, 2019:
 
 ```python
-$ ./GlobusArchiver.py --print_params
 #!/usr/bin/env python
 
 
@@ -319,7 +318,7 @@ archiveItems = {
 }
 ```
 
-# Running GlobusArchiver.py from crontab
+## Running GlobusArchiver.py from crontab
 You can run GlobusArchiver.py from cron.   I use a simple script (found in the helper subdir) [run_GlobusArchiver.sh](https://github.com/NCAR/GlobusArchiver/blob/master/helper/start_GCP.sh).  You can call it from cron like this:
 ```
 30 1 * * * run_GlobusArchiver.sh /home/prestop/archiverConfs/GA_CONF-hrrr-ak.py | /rap/bin/LogFilter -d ~/logs -p GlobusArchiver -i hrrr-ak
