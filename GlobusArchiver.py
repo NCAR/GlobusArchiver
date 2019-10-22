@@ -626,6 +626,7 @@ def do_transfers(transfer):
                     ii["last_glob"] = True
                 if not prepare_and_add_transfer(transfer, tdata, ii):
                     continue
+
         else:
             if not ii["glob"] and not os.path.exists(ii["source"]):
                 log_and_email(f"{ii['source']} does not exist. Skipping this archive item.", logging.error)
