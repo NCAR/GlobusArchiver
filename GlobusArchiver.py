@@ -305,9 +305,9 @@ SCOPES = ('openid email profile '
 # Global for the email
 ###########################
 email_msg = email.message.EmailMessage()
+email_critical = False
 email_errors = 0
 email_warnings = 0
-
 
 ########################################################
 # Function definitions
@@ -781,11 +781,14 @@ def add_to_email(email_str):
 
 def log_and_email(msg_str, logfunc):
     # uses global email_msg
+    global email_critical
     global email_errors
     global email_warnings
 
     # add to error/warning counter to modify email subject
-    if logfunc == logging.error or logfunc == logging.critical:
+    if logfunc == logging.critical:
+        email_critical = True
+    elif logfunc == logging.error:
         email_errors = email_errors + 1
     elif logfunc == logging.warning:
         email_warnings = email_warnings + 1
@@ -894,10 +897,10 @@ def check_task_for_success(transfer, task_id):
     if hasErrors:
         # cancel task and report error
         transfer.cancel_task(task_id)
-        log_and_email(f"Transfer had errors.  Task has been cancelled.", logging.error)
+        log_and_email(f"Transfer had errors.  Task has been cancelled.", logging.critical)
     elif timeoutCounter >= timeoutFull:
         transfer.cancel_task(task_id)
-        log_and_email(f"Transfer timed out after {timeoutFull} seconds", logging.error)
+        log_and_email(f"Transfer timed out after {timeoutFull} seconds and was cancelled.", logging.critical)
     else:
         log_and_email(f"Transfer completed successfully.", logging.info)
 
@@ -915,7 +918,6 @@ def submit_transfer_task(transfer, tdata):
     log_and_email(f"This transfer can be monitored via the Web UI: https://app.globus.org/activity/{task['task_id']}",
                   logging.info)
 
-
     check_task_for_success(transfer, task['task_id'])
 
 def prepare_email_msg():
@@ -932,10 +934,13 @@ def prepare_email_msg():
 def set_email_msg_subject():
     # set subject text based on user specifications
     err_str = ''
-    if email_errors == 0 and email_warnings == 0:
-        err_str = 'NO PROBLEMS'
+
+    if email_critical:
+        err_str += 'FAILURE'
+    elif email_errors == 0 and email_warnings == 0:
+        err_str += 'NO PROBLEMS'
     elif email_errors > 0 and email_warnings > 0:
-        err_str = f'{email_errors} ERRORS & {email_warnings} WARNINGS'
+        err_str += f'{email_errors} ERRORS & {email_warnings} WARNINGS'
     elif email_errors:
             err_str += f'{email_errors} ERRORS'
     elif email_warnings:
@@ -949,7 +954,6 @@ def set_email_msg_subject():
 
     subject = p.opt['emailSubjectFormat'].format(**subject_format)
     email_msg['Subject'] = subject
-
 
 def send_email_msg():
     logging.info(f"Sending email to {email_msg['To']}")
