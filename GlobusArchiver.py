@@ -881,8 +881,9 @@ def check_task_for_success(transfer, task_id):
 
         # get any errors in the event list so we can go ahead and give up.
         for event in transfer.task_event_list(task_id, filter=["is_error:1"]):
-            logging.error(f"Task Event indicates an error: {event}")
+            log_and_email(f"Task Event indicates an error: {event['details']}. Task has been cancelled.", logging.critical)
             hasErrors = True
+            break
             
         # check all events for in progress or error status
         #for event in transfer.task_event_list(task_id, filter=["is_error:1"]):
@@ -895,9 +896,8 @@ def check_task_for_success(transfer, task_id):
         timeoutCounter += timeoutInterval
 
     if hasErrors:
-        # cancel task and report error
+        # cancel task
         transfer.cancel_task(task_id)
-        log_and_email(f"Transfer had errors.  Task has been cancelled.", logging.critical)
     elif timeoutCounter >= timeoutFull:
         transfer.cancel_task(task_id)
         log_and_email(f"Transfer timed out after {timeoutFull} seconds and was cancelled.", logging.critical)
