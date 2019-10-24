@@ -138,7 +138,7 @@ globusTokenFile = os.path.join(os.path.expanduser("~"),".globus-ral","refresh-to
 # The date/time can be substituted into all archive-item strings, by using
 # standard strftime formatting.
 
-# This value is added (so use a negaative number to assign a date in the past) 
+# This value is added (so use a negative number to assign a date in the past) 
 # to now() to find the archive date/time.
 archiveDayDelta=-2
 
