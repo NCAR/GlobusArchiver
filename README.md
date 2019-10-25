@@ -107,6 +107,12 @@ To get the required dependencies, run the following:
 ./manage_externals/checkout_externals
 ```
 
+I have ~/bin in my path, so I like to put a link there.  Here is one way you might do that:
+```
+ln ~/git/GlobusArchiver/GlobusArchiver.py ~/bin/
+ln ~/git/GlobusArchiver/configmaster ~/bin/
+```
+
 # Using the Globus with the Campaign Store
 
 ## login to globus
@@ -340,10 +346,9 @@ PATH=/usr/local/sbin:/usr/local/bin:/home/prestop/bin
 ```
 
 # Full Cron Example
-Here is what my entire crontab looks like for a machine that runs 4
+Here is what my entire crontab looks like for a machine that runs 6 instance of GlobusArchiver.py
 
 ```
-
 PATH=/usr/local/sbin:/usr/local/bin:/home/prestop/bin
 MAILTO=prestop@ucar.edu
 LOG_DIR=/home/prestop/logs
@@ -362,27 +367,23 @@ BASH_ENV=/home/prestop/.bashrc
 */5 *   *    *    *      start_GCP.sh >> $LOG_DIR/start_gcp.cron.log 2>&1
 
 # run GlobusArchiver.py
+30 0 * * * GlobusArchiver.py --config /home/prestop/archiverConfs/GA_CONF-hrrr.py --debug VERBOSE | /rap/bin/LogFilter -d $LOG_DIR -p GlobusArchiver -i hrrr
 
-#57 20 * * * run_GlobusArchiver.sh /home/prestop/archiverConfs/GA_CONF-hrrr-ak.py | /rap/bin/LogFilter -d ~/logs -p GlobusArchiver -i hrrr-ak
-#30 1 * * * run_GlobusArchiver.sh /home/prestop/archiverConfs/GA_CONF-hrrr-ak.py | /rap/bin/LogFilter -d ~/logs -p GlobusArchiver -i hrrr-ak
-30 1 * * * /home/prestop/bin/GlobusArchiver.py --config /home/prestop/archiverConfs/GA_CONF-hrrr-ak.py --debug VERBOSE | /rap/bin/LogFilter -d $LOG_DIR -p GlobusArchiver -i hrrr-ak
+00 1 * * * GlobusArchiver.py --config /home/prestop/archiverConfs/GA_CONF-ddp.py --debug VERBOSE | /rap/bin/LogFilter -d $LOG_DIR -p GlobusArchiver -i ddp
 
-#00 2 * * * run_GlobusArchiver.sh /home/prestop/archiverConfs/GA_CONF-mrms-ak.py | /rap/bin/LogFilter -d ~/logs -p GlobusArchiver -i mrms-ak
-00 2 * * * /home/prestop/bin/GlobusArchiver.py --config /home/prestop/archiverConfs/GA_CONF-mrms-ak.py --debug VERBOSE | /rap/bin/LogFilter -d $LOG_DIR -p GlobusArchiver -i hrrr-ak
+30 1 * * * GlobusArchiver.py --config /home/prestop/archiverConfs/GA_CONF-gfs.py --debug VERBOSE | /rap/bin/LogFilter -d $LOG_DIR -p GlobusArchiver -i gfs
 
-#30 2 * * * run_GlobusArchiver.sh /home/prestop/archiverConfs/GA_CONF-mrms-conus.py | /rap/bin/LogFilter -d ~/logs -p GlobusArchiver -i mrms-conus
-30 2 * * * /home/prestop/bin/GlobusArchiver.py --config /home/prestop/archiverConfs/GA_CONF-mrms-conus.py --debug VERBOSE | /rap/bin/LogFilter -d $LOG_DIR -p GlobusArchiver -i mrms-conus
+00 2 * * * GlobusArchiver.py --config /home/prestop/archiverConfs/GA_CONF-wrf.py --debug VERBOSE | /rap/bin/LogFilter -d $LOG_DIR -p GlobusArchiver -i wrf
 
-#00 3 * * * run_GlobusArchiver.sh /home/prestop/archiverConfs/GA_CONF-g16-l2.py | /rap/bin/LogFilter -d ~/logs -p GlobusArchiver -i g16-l2
-00 3 * * * /home/prestop/bin/GlobusArchiver.py --config /home/prestop/archiverConfs/GA_CONF-g16-l2.py --debug VERBOSE | /rap/bin/LogFilter -d $LOG_DIR -p GlobusArchiver -i g16-l2
+30 2 * * * GlobusArchiver.py --config /home/prestop/archiverConfs/GA_CONF-otherLDM.py --debug VERBOSE | /rap/bin/LogFilter -d $LOG_DIR -p GlobusArchiver -i otherLDM
+
+30 3 * * * GlobusArchiver.py --config /home/prestop/archiverConfs/GA_CONF-nam.py --debug VERBOSE | /rap/bin/LogFilter -d $LOG_DIR -p GlobusArchiver -i nam
+
+
+# reactivate the Campaign Store endpoint monthly
+0   0   25   *   *   /usr/local/anaconda3/bin/globus endpoint activate --delegate-proxy /home/prestop/.prestop-globus.cert --force --proxy-lifetime 744 6b5ab960-7bbf-11e8-9450-0a6d4e044368 > /home/p\
+restop/logs/globus-activate.log  2>&1
 ```
-
-
-
-
-
-
-
 
 # Troubleshooting
 ## Syntax Error (python version problem)
