@@ -331,9 +331,57 @@ archiveItems = {
 ## Running GlobusArchiver.py from crontab
 You can run GlobusArchiver.py from cron.   I use a simple script (found in the helper subdir) [run_GlobusArchiver.sh](https://github.com/NCAR/GlobusArchiver/blob/master/helper/start_GCP.sh).  You can call it from cron like this:
 ```
-30 1 * * * run_GlobusArchiver.sh /home/prestop/archiverConfs/GA_CONF-hrrr-ak.py | /rap/bin/LogFilter -d ~/logs -p GlobusArchiver -i hrrr-ak
+30 1 * * * /home/prestop/bin/GlobusArchiver.py --config /home/prestop/archiverConfs/GA_CONF-hrrr-ak.py --debug VERBOSE | /rap/bin/LogFilter -d ~/logs -p GlobusArchiver -i hrrr-ak
 ```
 NOTE: This pipe only sends stdout to LogFilter.  Stderr will not get redirected, so make sure you have your MAILTO set correctly in your crontab.
+NOTE: You will need to either give the full path to GlobusArchiver.py, or set PATH in your crontab:
+```
+PATH=/usr/local/sbin:/usr/local/bin:/home/prestop/bin
+```
+
+# Full Cron Example
+Here is what my entire crontab looks like for a machine that runs 4
+
+```
+
+PATH=/usr/local/sbin:/usr/local/bin:/home/prestop/bin
+MAILTO=prestop@ucar.edu
+LOG_DIR=/home/prestop/logs
+
+SHELL=/bin/bash
+BASH_ENV=/home/prestop/.bashrc
+
+# minute (0-59),
+# |   hour (0-23),
+# |   |    day of the month (1-31),
+# |   |    |    month of the year (1-12),
+# |   |    |    |    day of the week (0-6 with 0=Sunday).
+# |   |    |    |    |       commands
+
+# make sure GCP is running
+*/5 *   *    *    *      start_GCP.sh >> $LOG_DIR/start_gcp.cron.log 2>&1
+
+# run GlobusArchiver.py
+
+#57 20 * * * run_GlobusArchiver.sh /home/prestop/archiverConfs/GA_CONF-hrrr-ak.py | /rap/bin/LogFilter -d ~/logs -p GlobusArchiver -i hrrr-ak
+#30 1 * * * run_GlobusArchiver.sh /home/prestop/archiverConfs/GA_CONF-hrrr-ak.py | /rap/bin/LogFilter -d ~/logs -p GlobusArchiver -i hrrr-ak
+30 1 * * * /home/prestop/bin/GlobusArchiver.py --config /home/prestop/archiverConfs/GA_CONF-hrrr-ak.py --debug VERBOSE | /rap/bin/LogFilter -d $LOG_DIR -p GlobusArchiver -i hrrr-ak
+
+#00 2 * * * run_GlobusArchiver.sh /home/prestop/archiverConfs/GA_CONF-mrms-ak.py | /rap/bin/LogFilter -d ~/logs -p GlobusArchiver -i mrms-ak
+00 2 * * * /home/prestop/bin/GlobusArchiver.py --config /home/prestop/archiverConfs/GA_CONF-mrms-ak.py --debug VERBOSE | /rap/bin/LogFilter -d $LOG_DIR -p GlobusArchiver -i hrrr-ak
+
+#30 2 * * * run_GlobusArchiver.sh /home/prestop/archiverConfs/GA_CONF-mrms-conus.py | /rap/bin/LogFilter -d ~/logs -p GlobusArchiver -i mrms-conus
+30 2 * * * /home/prestop/bin/GlobusArchiver.py --config /home/prestop/archiverConfs/GA_CONF-mrms-conus.py --debug VERBOSE | /rap/bin/LogFilter -d $LOG_DIR -p GlobusArchiver -i mrms-conus
+
+#00 3 * * * run_GlobusArchiver.sh /home/prestop/archiverConfs/GA_CONF-g16-l2.py | /rap/bin/LogFilter -d ~/logs -p GlobusArchiver -i g16-l2
+00 3 * * * /home/prestop/bin/GlobusArchiver.py --config /home/prestop/archiverConfs/GA_CONF-g16-l2.py --debug VERBOSE | /rap/bin/LogFilter -d $LOG_DIR -p GlobusArchiver -i g16-l2
+```
+
+
+
+
+
+
 
 
 # Troubleshooting
