@@ -37,16 +37,26 @@ You will need globusconnectpersonal installed to start your own local endpoint. 
 
 The instructions that follow assume these two programs are in your path.  
 
+# Setting your globus environment
+
 Here is one way you can add the globus CLI, globus SDK and globusconnectpersonal to your path.
 
 ```
-echo export PATH=/usr/local/anaconda3/bin:\$PATH:/opt/globusconnectpersonal > ~/.globus_env
+echo export PATH=/usr/local/anaconda3/bin:\$PATH:/opt/globusconnectpersonal > ~/.globus_env.sh
 ```
 now you can source this file to set your environment
 ```
-. ~/.globus_env
+. ~/.globus_env.sh
 ```
-or add it to your .bashrc so your path is always set.
+
+but I recommend adding it to your .bashrc so your path is always set.  Be sure to add it before an non-interactive exits.
+Once you've got it in your .bashrc, you can make sure your processes run via cron have the correct environment, by adding
+these lines to your crontab (swap out /home/prestop for your home dir - you cannot use $HOME, as crontab doesn't do variable substitution when setting a variable):
+```
+SHELL=/bin/bash
+BASH_ENV=/home/prestop/.bashrc
+```
+
 
 A "quickstart guide" to using Globus Connect Personal is given below, but you can also find more [information about Globus Connect Personal online](https://www.globus.org/globus-connect-personal).
 

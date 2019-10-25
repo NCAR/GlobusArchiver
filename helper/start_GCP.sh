@@ -1,16 +1,16 @@
 #!/bin/bash
 
-# set up env (path, etc.)
-. ~/.bashrc
 
-process=globusconnectpersonal
+process="globusconnectpersonal"
+
+full_process="globusconnectpersonal -start -dir $HOME/.globusonline"
 LOG_DIR=$HOME/logs
 
 
-running "$process"
+globusconnectpersonal -status 
 if [ $? = 1 ]; then
-  echo "starting $process -start"
-  $process -start 2>&1 | \
+  echo "starting $full_process"
+  $full_process 2>&1 | \
     LogFilter -d $LOG_DIR -p $process &
 fi
 
