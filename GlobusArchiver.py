@@ -872,18 +872,23 @@ def check_task_for_success(transfer, task_id):
 
     timeoutCounter = 0
 
-    hasErrors = False
     # wait for task to report that it completed or it timed out
     # if any event is still in progress, keep waiting
     # if no events are still in progress and there are errors
     # then cancel the transfer to stop it from retrying
-    while not hasErrors and timeoutCounter < timeoutFull and not transfer.task_wait(task_id, timeout=timeoutInterval, polling_interval=pollingInterval):
+    hasErrors = False
 
-        # get any errors in the event list so we can go ahead and give up.
+    while not hasErrors and timeoutCounter < timeoutFull and not transfer.task_wait(task_id, timeout=timeoutInterval, polling_interval=pollingInterval):
+        hasErrors = False
+
+        # get any errors in the event list so we can go ahead and give up.  Log all errors, but only email the first one.
         for event in transfer.task_event_list(task_id, filter=["is_error:1"]):
-            log_and_email(f"Task Event indicates an error: {event['details']}. Task has been cancelled.", logging.critical)
-            hasErrors = True
-            break
+            if not hasErrors:
+                log_and_email(f"Task Event indicates an error: {event['details']}.\nTask has been cancelled.", logging.critical)
+                hasErrors = True
+            else:
+                logging.critical(f"Task Event indicates an error: {event['details']}.\nTask has been cancelled.", logging.critical)                
+
             
         # check all events for in progress or error status
         #for event in transfer.task_event_list(task_id, filter=["is_error:1"]):
