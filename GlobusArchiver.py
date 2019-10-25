@@ -305,9 +305,9 @@ SCOPES = ('openid email profile '
 # Global for the email
 ###########################
 email_msg = email.message.EmailMessage()
+email_critical = False
 email_errors = 0
 email_warnings = 0
-
 
 ########################################################
 # Function definitions
@@ -334,15 +334,21 @@ def run_cmd(cmd):
     # https://stackoverflow.com/questions/295459/how-do-i-use-subprocess-popen-to-connect-multiple-processes-by-pipes
     try:
         if '|' in cmd or ';' in cmd or '*' in cmd or '?' in cmd:
-            return subprocess.run(cmd, check=True, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            cmd_out = subprocess.run(cmd, check=True, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                   encoding='utf-8')
         else:
             splitcmd = shlex.split(cmd)
-            return subprocess.run(splitcmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            cmd_out = subprocess.run(splitcmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                   encoding='utf-8')
 
+        if cmd_out.returncode != 0:
+            log_and_email(f'Command returned non-zero exit status: {cmd}.', logging.error)
+            return None
+
+        return cmd_out
+
     except subprocess.CalledProcessError:
-        logging.error(f'Command returned non-zero exit status: {cmd}.')
+        log_and_email(f'Command returned non-zero exit status: {cmd}.', logging.error)
         return None
 
 
@@ -619,14 +625,13 @@ def do_transfers(transfer):
                 else:
                     ii["last_glob"] = True
                 if not prepare_and_add_transfer(transfer, tdata, ii):
-                    log_and_email(f"Prepare/Add of transfer item failed.", logging.error)
                     continue
+
         else:
             if not ii["glob"] and not os.path.exists(ii["source"]):
                 log_and_email(f"{ii['source']} does not exist. Skipping this archive item.", logging.error)
                 continue
             if not prepare_and_add_transfer(transfer, tdata, ii):
-                log_and_email(f"Preparation/add of transfer item failed.", logging.error)
                 continue
 
     # submit all tasks for transfer
@@ -689,9 +694,11 @@ def prepare_transfer(ii):
         cmd += "-S .gz ";  # force .gz suffix in case of differing gzip version
         cmd += ii['source'];
         logging.debug(f"ZIPing file via cmd: {cmd}")
-        # TODO: Checking for no run_cmd is not enough?    I think we are stil getting an object with stdout/err even if the cmd failed.  Need to check return code.
-        if not run_cmd(cmd):
+
+        cmd_out = run_cmd(cmd)
+        if cmd_out is None:
             return False
+
         if os.path.isfile(ii['source']):
             ii['source'] += ".gz"
 
@@ -718,15 +725,19 @@ def prepare_transfer(ii):
         if ii.get("skipUnderscoreFiles"):
             cmd += " --exclude \"_*\""
 
-        if not run_cmd(cmd):
+        cmd_out = run_cmd(cmd)
+        if cmd_out is None:
             return False
+
         # created the tar file, so now set the source to the tar file 
         ii["source"] = os.path.join(tar_dir, ii["tarFileName"])
 
         cmd = f"tar tf {ii['source']} | wc -l"
+
         output = run_cmd(cmd)
         if output is None:
             return False
+
         logging.verbose(f"got output: {output}")
         ii["num_files"] = int(output.stdout)
     else:
@@ -770,11 +781,14 @@ def add_to_email(email_str):
 
 def log_and_email(msg_str, logfunc):
     # uses global email_msg
+    global email_critical
     global email_errors
     global email_warnings
 
     # add to error/warning counter to modify email subject
-    if logfunc == logging.error or logfunc == logging.critical:
+    if logfunc == logging.critical:
+        email_critical = True
+    elif logfunc == logging.error:
         email_errors = email_errors + 1
     elif logfunc == logging.warning:
         email_warnings = email_warnings + 1
@@ -867,8 +881,9 @@ def check_task_for_success(transfer, task_id):
 
         # get any errors in the event list so we can go ahead and give up.
         for event in transfer.task_event_list(task_id, filter=["is_error:1"]):
-            logging.error(f"Task Event indicates an error: {event}")
+            log_and_email(f"Task Event indicates an error: {event['details']}. Task has been cancelled.", logging.critical)
             hasErrors = True
+            break
             
         # check all events for in progress or error status
         #for event in transfer.task_event_list(task_id, filter=["is_error:1"]):
@@ -881,12 +896,11 @@ def check_task_for_success(transfer, task_id):
         timeoutCounter += timeoutInterval
 
     if hasErrors:
-        # cancel task and report error
+        # cancel task
         transfer.cancel_task(task_id)
-        log_and_email(f"Transfer had errors.  Task has been cancelled.", logging.error)
     elif timeoutCounter >= timeoutFull:
         transfer.cancel_task(task_id)
-        log_and_email(f"Transfer timed out after {timeoutFull} seconds", logging.error)
+        log_and_email(f"Transfer timed out after {timeoutFull} seconds and was cancelled.", logging.critical)
     else:
         log_and_email(f"Transfer completed successfully.", logging.info)
 
@@ -904,7 +918,6 @@ def submit_transfer_task(transfer, tdata):
     log_and_email(f"This transfer can be monitored via the Web UI: https://app.globus.org/activity/{task['task_id']}",
                   logging.info)
 
-
     check_task_for_success(transfer, task['task_id'])
 
 def prepare_email_msg():
@@ -921,10 +934,13 @@ def prepare_email_msg():
 def set_email_msg_subject():
     # set subject text based on user specifications
     err_str = ''
-    if email_errors == 0 and email_warnings == 0:
-        err_str = 'NO PROBLEMS'
+
+    if email_critical:
+        err_str += 'FAILURE'
+    elif email_errors == 0 and email_warnings == 0:
+        err_str += 'NO PROBLEMS'
     elif email_errors > 0 and email_warnings > 0:
-        err_str = f'{email_errors} ERRORS & {email_warnings} WARNINGS'
+        err_str += f'{email_errors} ERRORS & {email_warnings} WARNINGS'
     elif email_errors:
             err_str += f'{email_errors} ERRORS'
     elif email_warnings:
@@ -938,7 +954,6 @@ def set_email_msg_subject():
 
     subject = p.opt['emailSubjectFormat'].format(**subject_format)
     email_msg['Subject'] = subject
-
 
 def send_email_msg():
     logging.info(f"Sending email to {email_msg['To']}")
