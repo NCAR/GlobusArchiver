@@ -43,7 +43,7 @@ import globus_sdk
 import logging
 
 # manage externals
-sys.path.append(os.path.join(os.path.abspath(os.path.dirname(__file__)), 'configmaster'))
+sys.path.append(os.path.join(os.path.abspath(os.path.dirname(__file__)), 'ConfigMaster'))
 try:
     from ConfigMaster import ConfigMaster
 except  ImportError:
