@@ -332,24 +332,18 @@ def run_cmd(cmd):
     # shell=True is also required if using wildcards
     # TODO: https://stackoverflow.com/questions/13332268/how-to-use-subprocess-command-with-pipes
     # https://stackoverflow.com/questions/295459/how-do-i-use-subprocess-popen-to-connect-multiple-processes-by-pipes
-    try:
-        if '|' in cmd or ';' in cmd or '*' in cmd or '?' in cmd:
-            cmd_out = subprocess.run(cmd, check=True, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+    if '|' in cmd or ';' in cmd or '*' in cmd or '?' in cmd:
+        cmd_out = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                   encoding='utf-8')
-        else:
-            splitcmd = shlex.split(cmd)
-            cmd_out = subprocess.run(splitcmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+    else:
+        splitcmd = shlex.split(cmd)
+        cmd_out = subprocess.run(splitcmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                   encoding='utf-8')
 
-        if cmd_out.returncode != 0:
-            log_and_email(f'Command returned non-zero exit status: {cmd}.', logging.error)
-            return None
+    if cmd_out.returncode != 0:
+        log_and_email(f'Command returned non-zero exit status: {cmd_out.returncode} - {cmd}.', logging.warning)
 
-        return cmd_out
-
-    except subprocess.CalledProcessError:
-        log_and_email(f'Command returned non-zero exit status: {cmd}.', logging.error)
-        return None
+    return cmd_out
 
 
 def parse_archive_date_time():
@@ -690,15 +684,18 @@ def prepare_transfer(ii):
     if ii.get("doZip"):
         source_is_dir = os.path.isdir(ii['source'])
         source_is_file = os.path.isfile(ii['source'])
-        cmd = "gzip "
+        cmd = "yes n | gzip "  # need to pipe a 'n', because gzip is getting stuck asking "already exists; do you wish to overwrite (y or n)? "
         if source_is_dir:
             cmd += "-r "
         cmd += "-S .gz ";  # force .gz suffix in case of differing gzip version
         cmd += ii['source'];
         logging.debug(f"ZIPing file via cmd: {cmd}")
 
+        # gzip returns an warning status if the file already exists (e.g. metars.txt and metars.txt.gz).
+        # We don't want GlobusArchiver.py to fail if this happens, so only fail if it had an error (warning or success ok)
+        
         cmd_out = run_cmd(cmd)
-        if cmd_out is None:
+        if cmd_out.returncode == 1:
             return False
 
         if source_is_file:
@@ -728,7 +725,7 @@ def prepare_transfer(ii):
             cmd += " --exclude \"_*\""
 
         cmd_out = run_cmd(cmd)
-        if cmd_out is None:
+        if cmd_out.returncode != 0:
             return False
 
         # created the tar file, so now set the source to the tar file 
@@ -736,12 +733,12 @@ def prepare_transfer(ii):
 
         cmd = f"tar tf {ii['source']} | wc -l"
 
-        output = run_cmd(cmd)
-        if output is None:
+        cmd_out = run_cmd(cmd)
+        if cmd_out.returncode != 0:
             return False
 
-        logging.verbose(f"got output: {output}")
-        ii["num_files"] = int(output.stdout)
+        #logging.verbose(f"got output: {cmd_out.stdout}")
+        ii["num_files"] = int(cmd_out.stdout)
     else:
         # if source is a directory, list the number of files inside
         # otherwise just increment number of files
