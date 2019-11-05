@@ -688,8 +688,10 @@ def prepare_transfer(ii):
     #    return False
 
     if ii.get("doZip"):
+        source_is_dir = os.path.isdir(ii['source'])
+        source_is_file = os.path.isfile(ii['source'])
         cmd = "gzip "
-        if os.path.isdir(ii['source']):
+        if source_is_dir:
             cmd += "-r "
         cmd += "-S .gz ";  # force .gz suffix in case of differing gzip version
         cmd += ii['source'];
@@ -699,7 +701,7 @@ def prepare_transfer(ii):
         if cmd_out is None:
             return False
 
-        if os.path.isfile(ii['source']):
+        if source_is_file:
             ii['source'] += ".gz"
 
     if ii.get("tarFileName"):
