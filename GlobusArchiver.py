@@ -171,11 +171,11 @@ transferStatusTimeout = 6*60*60
 # source 
 
 # doZip        is optional, and defaults to False
-# tar_filename is optional and defaults to "".  TAR is only done if tar_filename is a non-empty string
-#              if multiple archiveItems have the same tar_filename, 
+# tarFileName is optional and defaults to "".  TAR is only done if tarFileName is a non-empty string
+#              if multiple archiveItems have the same tarFileName, the files from all sources will get put into the same tar file.
 # transferArgs is a placeholder and not yet implemented.
 
-# use sync_level to specify when files are overwritten:
+# use syncLevel to specify when files are overwritten:
 
 # "exists"   - If the destination file is absent, do the transfer.
 # "size"     - If destination file size does not match the source, do the transfer.
@@ -188,7 +188,7 @@ archiveItems = {
        "source": "/d1/prestop/backup/test1",
        "destination": "/gpfs/csfs1/ral/nral0003",
        "doZip": False,
-       "sync_level" : "mtime",
+       "syncLevel" : "mtime",
        },
 "icing-cvs-data2":
        {
@@ -850,9 +850,9 @@ def add_transfer_item(transfer, tdata, ii):
 
     logging.debug(f"source: {ii['source']}  isdir: {os.path.isdir(ii['source'])} tfn: {ii.get('tarFileName')}")
     if os.path.isdir(ii['source']): # and not ii.get("tarFileName"):
-        tdata.add_item(ii['source'], destination, recursive=True, sync_level=ii.get("sync_level"))
+        tdata.add_item(ii['source'], destination, recursive=True, sync_level=ii.get("syncLevel"))
     else:
-        tdata.add_item(ii['source'], destination, sync_level=ii.get("sync_level"))
+        tdata.add_item(ii['source'], destination, sync_level=ii.get("syncLevel"))
     logging.debug(f"Adding TransferData item: {ii['source']} -> {destination}") 
 
 def check_task_for_success(transfer, task_id):
