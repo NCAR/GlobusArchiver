@@ -625,6 +625,9 @@ def do_transfers(transfer):
             if not ii["glob"] and not os.path.exists(ii["source"]):
                 log_and_email(f"{ii['source']} does not exist. Skipping this archive item.", logging.error)
                 continue
+
+            # setting last glob to True for tarring with a glob so expected file size/number is checked
+            ii["last_glob"] = True
             if not prepare_and_add_transfer(transfer, tdata, ii):
                 log_and_email(f"Preparation/add of transfer item failed.", logging.error)
                 continue
@@ -756,6 +759,9 @@ def prepare_transfer(ii):
                 log_and_email(
                     f"Item has {ii['num_files']} files but expects {ii['expectedNumFiles']} files!",
                     logging.warning)
+            else:
+                logging.verbose(f"Number of files ({ii['num_files']}) is equal to or greater than "
+                                f"expectedNumFiles ({ii['expectedNumFiles']})")
         else:
             # this should never happen
             log_and_email(
