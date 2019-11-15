@@ -88,6 +88,8 @@ def main():
         item = 0
         # keep track if we are inside an archiveItem
         inItem = False
+        # if doStaging is set for all items, set it for each unless that item has doStaging = false
+        doStagingAll = False
         # if doZip is set for all items, set it for each unless that item has doZip = false
         doZipAll = False
         # if skipUnderscoreFiles is set for all items, set it for each unless that item has skipUnderscoreFiles = false
@@ -122,6 +124,7 @@ def main():
                 inItem = True
                 # keep track if doZip and skipUnderscoreFiles was set in this archiveItem so we know to override
                 # it with global  or not
+                doStagingIsSet = False
                 doZipIsSet = False
                 skipUnderscoreFilesIsSet = False
                 warningLevelIsSet = False
@@ -187,6 +190,17 @@ def main():
                     warningLevelIsSet = True
 
                 
+            if "<doStaging>" in line:
+                doStaging = line.replace("<doStaging>", "").replace("</doStaging>", "").rstrip()
+                doStaging = False if doStaging.lower() == 'false' else True
+
+                # if outside archiveItem, this line is global doStaging
+                if not inItem:
+                    doStagingAll = doStaging
+                else:
+                    output += ' ' * indent + f'"doStaging": {doStaging},\n'
+                    doStagingIsSet = True
+
             if "<doZip>" in line:
                 doZip = line.replace("<doZip>", "").replace("</doZip>", "").rstrip()
                 doZip = False if doZip.lower() == 'false' else True
@@ -229,6 +243,10 @@ def main():
                     if cdDirTar:
                         output += ' ' * indent + f'"cdDirTar": "{cdDirTar}",\n'
                 output += ' ' * indent + f'"destination": "{destination}",\n'
+                # if doStaging was not set in this item but it was set to for all, set doStaging to global doStaging
+                if not doStagingIsSet and doStagingAll:
+                    output += ' ' * indent + f'"doStaging": {doStagingAll},\n'
+                    
                 # if doZip was not set in this item but it was set to for all, set doZip to global doZip
                 if not doZipIsSet and doZipAll:
                     output += ' ' * indent + f'"doZip": {doZipAll},\n'
@@ -245,6 +263,7 @@ def main():
                 item += 1
                 # reset booleans that pertain to a given archiveItem
                 inItem = False
+                doStagingIsSet = False
                 doZipIsSet = False
                 skipUnderscoreFilesIsSet = False
                 warningLevelIsSet = False
