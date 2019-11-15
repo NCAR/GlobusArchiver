@@ -589,7 +589,7 @@ def do_transfers(transfer):
     #p.opt["task_label"] = p.opt["task_label"].decode('utf-8')
 
     logging.info(f"Creating TransferData object with label '{p.opt['task_label']}'")
-    logging.info(f"task_label -  {type(p.opt['task_label'])}")
+    #logging.info(f"task_label -  {type(p.opt['task_label'])}")
     
     tdata = globus_sdk.TransferData(transfer, local_ep_id, p.opt["archiveEndPoint"], label=p.opt["task_label"])
     #tdata = globus_sdk.TransferData(transfer, local_ep_id, p.opt["archiveEndPoint"])
@@ -599,7 +599,7 @@ def do_transfers(transfer):
         logging.info(f"Starting on {item}")
 
         ii = copy.deepcopy(item_info)
-
+        ii["key"] = item
         # substitute date/time strings and env variables in item info
         #logging.verbose(f"ii keys: {ii.keys()}")
         for ii_key in ("source", "destination", "tarFileName", "cdDirTar"):
@@ -726,13 +726,13 @@ def prepare_transfer(ii):
     #    return False
 
     if ii.get("doStaging"):
-        staging_dir = os.path.join(p.opt["tempDir"], f"Item-{ii['tar_group_name']}-Staging")
+        staging_dir = os.path.join(p.opt["tempDir"], f"Item-{ii['key']}-Staging")
         logging.debug(f"Using {staging_dir} for staging.")
         cmd = f"mkdir -p {staging_dir}"
         run_cmd(cmd, exception_on_error=True)
 
         # handle simple case (no cdDirTar)
-        if not iig.get('cdDirTar'):
+        if not ii.get('cdDirTar'):
             cmd = f"cp -r {ii['source']} {staging_dir}"
             run_cmd(cmd, exception_on_error=True)
             lastDir = os.path.basename(ii['source'])
@@ -741,8 +741,8 @@ def prepare_transfer(ii):
             # we've got a cdDirTar
             cmd = f"cp -r --parents {ii['source']} {staging_dir}"
             run_cmd(cmd, exception_on_error=True)
-            ii["cdDirTar"] = os.path.join(staging_dir, ii["cdDirTar"])
-            ii['source'] = os.path.join(staging_dir, ii["source"])
+            ii["cdDirTar"] = os.path.join(staging_dir, ii["cdDirTar"].lstrip(os.sep))
+            ii['source'] = os.path.join(staging_dir, ii["source"].lstrip(os.sep))
             logging.debug(f"After staging, cdDirTar has been changed to {ii['cdDirTar']}")
             
         logging.debug(f"After staging, source has been changed to {ii['source']}")
