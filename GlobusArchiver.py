@@ -84,6 +84,7 @@ taskLabel =  f"GA-unnamed-%Y%m%d"
 
 # tempDir is used for:
 #     - Staging Location for .tar Files
+#     - Staging location if doStaging is True
 
 # Default, $TMPDIR if it is defined, otherwise $HOME if defined, otherwise '.'.
 tempDir = os.path.join(os.getenv("TMPDIR",os.getenv("HOME",".")), "GlobusArchiver-tmp")
@@ -169,11 +170,25 @@ transferStatusTimeout = 6*60*60
 # TODO: better documentation of these fields in archiveItems
 
 # source 
+# doStaging          
+#            is optional, and defaults to False
 
-# doZip        is optional, and defaults to False
-# tarFileName is optional and defaults to "".  TAR is only done if tarFileName is a non-empty string
-#              if multiple archiveItems have the same tarFileName, the files from all sources will get put into the same tar file.
+# doZip           
+#            is optional, and defaults to False
+
+# skipUnderscoreFiles 
+#            is optional, and defaults to False
+
+
+
+# tarFileName  
+#            is optional and defaults to "".  TAR is only done if tarFileName is a non-empty string
+#            if multiple archiveItems have the same tarFileName, the files from all sources will get put into the same tar file.
+
+
 # transferArgs is a placeholder and not yet implemented.
+
+
 
 # use syncLevel to specify when files are overwritten:
 
@@ -181,6 +196,8 @@ transferStatusTimeout = 6*60*60
 # "size"     - If destination file size does not match the source, do the transfer.
 # "mtime"    - If source has a newer modififed time than the destination, do the transfer.
 # "checksum" - If source and destination contents differ, as determined by a checksum of their contents, do the transfer. 
+
+
 
 archiveItems = {
 "icing-cvs-data":
@@ -318,7 +335,7 @@ def safe_mkdirs(d):
         os.makedirs(d, 0o700, exist_ok=True)
 
 
-def run_cmd(cmd):
+def run_cmd(cmd, exception_on_error=False):
     '''
     runs a command with blocking
 
@@ -342,6 +359,9 @@ def run_cmd(cmd):
 
     if cmd_out.returncode != 0:
         log_and_email(f'Command returned non-zero exit status: {cmd_out.returncode} - {cmd}.', logging.warning)
+        if exception_on_error:
+            raise subprocess.CalledProcessError
+        
 
     return cmd_out
 
@@ -426,14 +446,30 @@ def handle_configuration():
     #add_item_label()
     add_tar_groups_info()
 
-    # TODO: make this pretty: https://stackoverflow.com/questions/3229419/how-to-pretty-print-nested-dictionaries
-    logging.debug("After handle_configuration(), configuration looks like this:")
-    logging.debug(f"{p.opt}")
-
     # add random subdir to tmp dir
     p.opt["tempDir"] = os.path.join(p.opt["tempDir"], randomword(8))
 
 
+    for item, item_info in p.opt["archiveItems"].items():
+        
+        # check that skip_underscores is only set if we are staging or TARing
+        if item_info.get("skipUnderscoreFiles"):
+            if not item_info.get("doStaging") and not item_info.get("tarFileName"):
+                log_and_email(f"skipUnderscoreFiles is True, but not staging or TARing for {item}", logging.fatal)
+                sys.exit(1)
+                
+        # strip trailing slash from source and destination and otherwise normalize
+        item_info["source"] = os.path.normpath(item_info["source"])
+        item_info["destination"] = os.path.normpath(item_info["destination"])
+        if item_info.get("cdDirTar"):
+            item_info["cdDirTar"] = os.path.normpath(item_info["cdDirTar"])
+                
+    # TODO: make this pretty: https://stackoverflow.com/questions/3229419/how-to-pretty-print-nested-dictionaries
+    logging.debug("After handle_configuration(), configuration looks like this:")
+    logging.debug(f"{p.opt}")
+
+
+                
 def load_tokens_from_file(filepath):
     """Load a set of saved tokens."""
     logging.info(f"Attempting load of tokens from {filepath}")
@@ -638,13 +674,17 @@ def do_transfers(transfer):
 
 def prepare_and_add_transfer(transfer, tdata, item_info):
     logging.info(f"\nTRANSFER -- {item_info['source']}")
-    if prepare_transfer(item_info):
-        # TODO: check_sizes(item_info)  -- this is done during prepare, could be refactored to here?
-        add_transfer_item(transfer, tdata, item_info)
-        return True
-    else:
-        return False
+    try:
+        
+        if prepare_transfer(item_info):
+            # TODO: check_sizes(item_info)  -- this is done during prepare, could be refactored to here?
+            add_transfer_item(transfer, tdata, item_info)
+            return True
+        else:
+            return False
 
+    except Exception as e: 
+        log_and_email(f"prepare_transfer raised exception {e}", logging.error)
 
 # recursively creates parents to make path
 def make_globus_dir(transfer, path):
@@ -659,6 +699,7 @@ def make_globus_dir(transfer, path):
 
 
 def prepare_transfer(ii):
+
     if not ii["source"].startswith('/'):
         log_and_email(f"{item} source: {ii['source']} must be absolute.  SKIPPING!", logging.error)
         return False
@@ -683,6 +724,29 @@ def prepare_transfer(ii):
     #    except 
     #    
     #    return False
+
+    if ii.get("doStaging"):
+        staging_dir = os.path.join(p.opt["tempDir"], f"Item-{ii['tar_group_name']}-Staging")
+        logging.debug(f"Using {staging_dir} for staging.")
+        cmd = f"mkdir -p {staging_dir}"
+        run_cmd(cmd, exception_on_error=True)
+
+        # handle simple case (no cdDirTar)
+        if not iig.get('cdDirTar'):
+            cmd = f"cp -r {ii['source']} {staging_dir}"
+            run_cmd(cmd, exception_on_error=True)
+            lastDir = os.path.basename(ii['source'])
+            ii['source'] = os.path.join(staging_dir, lastDir)
+        else:
+            # we've got a cdDirTar
+            cmd = f"cp -r --parents {ii['source']} {staging_dir}"
+            run_cmd(cmd, exception_on_error=True)
+            ii["cdDirTar"] = os.path.join(staging_dir, ii["cdDirTar"])
+            ii['source'] = os.path.join(staging_dir, ii["source"])
+            logging.debug(f"After staging, cdDirTar has been changed to {ii['cdDirTar']}")
+            
+        logging.debug(f"After staging, source has been changed to {ii['source']}")
+    
 
     if ii.get("doZip"):
         source_is_dir = os.path.isdir(ii['source'])
@@ -997,6 +1061,8 @@ def main():
     transfer_client = get_transfer_client()
     do_transfers(transfer_client)
 
+    
+        
     set_email_msg_subject()
     send_email_msg()
 
