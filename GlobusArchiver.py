@@ -600,6 +600,7 @@ def do_transfers(transfer):
 
         ii = copy.deepcopy(item_info)
         ii["key"] = item
+        logging.verbose(f"Storing {item} as key")
         # substitute date/time strings and env variables in item info
         #logging.verbose(f"ii keys: {ii.keys()}")
         for ii_key in ("source", "destination", "tarFileName", "cdDirTar"):
@@ -726,6 +727,7 @@ def prepare_transfer(ii):
     #    return False
 
     if ii.get("doStaging"):
+        logging.verbose(f"Building staging dir from {p.opt['tempDir']} and {ii['key']}")
         staging_dir = os.path.join(p.opt["tempDir"], f"Item-{ii['key']}-Staging")
         logging.debug(f"Using {staging_dir} for staging.")
         cmd = f"mkdir -p {staging_dir}"
