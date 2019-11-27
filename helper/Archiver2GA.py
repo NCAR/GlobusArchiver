@@ -89,9 +89,11 @@ def main():
         # keep track if we are inside an archiveItem
         inItem = False
         # if doStaging is set for all items, set it for each unless that item has doStaging = false
-        doStagingAll = False
+        # default value in Archiver.pl was True, so set this to true unless overridden
+        doStagingAll = True
         # if doZip is set for all items, set it for each unless that item has doZip = false
-        doZipAll = False
+        # default value in Archiver.pl was True, so set this to true unless overridden
+        doZipAll = True
         # if skipUnderscoreFiles is set for all items, set it for each unless that item has skipUnderscoreFiles = false
         skipUnderscoreFilesAll = False
         # same for warningLevel
@@ -243,11 +245,11 @@ def main():
                     if cdDirTar:
                         output += ' ' * indent + f'"cdDirTar": "{cdDirTar}",\n'
                 output += ' ' * indent + f'"destination": "{destination}",\n'
-                # if doStaging was not set in this item but it was set to for all, set doStaging to global doStaging
+                # if doStaging was not set in this item but it was set for all, set doStaging to global doStaging
                 if not doStagingIsSet and doStagingAll:
                     output += ' ' * indent + f'"doStaging": {doStagingAll},\n'
                     
-                # if doZip was not set in this item but it was set to for all, set doZip to global doZip
+                # if doZip was not set in this item but it was set for all, set doZip to global doZip
                 if not doZipIsSet and doZipAll:
                     output += ' ' * indent + f'"doZip": {doZipAll},\n'
 
