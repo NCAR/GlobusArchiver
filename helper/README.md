@@ -10,3 +10,7 @@ Usage:
 
 ral_program is used to replace /RAPDMG in destinations
 
+# Globus_Archiver_rerun_archive_date_range.py
+
+Simple wrapper script to execute Globus_Archiver.py over a range of dates.  Useful for filling in gaps in an archive
+when the automated process fails for a period of time.  Needs a little customization for each user.
