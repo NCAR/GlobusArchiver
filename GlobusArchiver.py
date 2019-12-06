@@ -360,7 +360,7 @@ def run_cmd(cmd, exception_on_error=False):
     if cmd_out.returncode != 0:
         log_and_email(f'Command returned non-zero exit status: {cmd_out.returncode} - {cmd}.', logging.warning)
         if exception_on_error:
-            raise subprocess.CalledProcessError
+            raise subprocess.CalledProcessError(cmd_out.returncode, cmd)
         
 
     return cmd_out
