@@ -452,12 +452,6 @@ def handle_configuration():
 
     for item, item_info in p.opt["archiveItems"].items():
         
-        # check that skip_underscores is only set if we are staging or TARing
-        if item_info.get("skipUnderscoreFiles"):
-            if not item_info.get("doStaging") and not item_info.get("tarFileName"):
-                log_and_email(f"skipUnderscoreFiles is True, but not staging or TARing for {item}", logging.fatal)
-                sys.exit(1)
-                
         # strip trailing slash from source and destination and otherwise normalize
         item_info["source"] = os.path.normpath(item_info["source"])
         item_info["destination"] = os.path.normpath(item_info["destination"])
@@ -594,9 +588,19 @@ def do_transfers(transfer):
     tdata = globus_sdk.TransferData(transfer, local_ep_id, p.opt["archiveEndPoint"], label=p.opt["task_label"])
     #tdata = globus_sdk.TransferData(transfer, local_ep_id, p.opt["archiveEndPoint"])
 
+    # keep track of any fatal errors in all items, skip the transfer if are found
+    isOK = True
+
     logging.info("\nBEGINNING PROCESSING OF archiveItems")
     for item, item_info in p.opt["archiveItems"].items():
         logging.info(f"Starting on {item}")
+
+        # check that skip_underscores is only set if we are staging or TARing
+        if item_info.get("skipUnderscoreFiles"):
+            if not item_info.get("doStaging") and not item_info.get("tarFileName"):
+                log_and_email(f"skipUnderscoreFiles is True, but not staging or TARing for {item}", logging.fatal)
+                isOK = False
+                continue
 
         ii = copy.deepcopy(item_info)
         ii["key"] = item
@@ -669,7 +673,7 @@ def do_transfers(transfer):
                 continue
 
     # submit all tasks for transfer
-    if p.opt['submitTasks']:
+    if isOK and p.opt['submitTasks']:
         submit_transfer_task(transfer, tdata)
 
 
