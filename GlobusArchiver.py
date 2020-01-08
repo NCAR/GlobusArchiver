@@ -167,37 +167,40 @@ transferStatusTimeout = 6*60*60
 ####################################
 ## ARCHIVE ITEM CONFIGURATION
 ####################################
-# TODO: better documentation of these fields in archiveItems
-
-# source 
-# doStaging          
-#            is optional, and defaults to False
-
-# doZip           
-#            is optional, and defaults to False
-
-# skipUnderscoreFiles 
-#            is optional, and defaults to False
-
-
-
-# tarFileName  
-#            is optional and defaults to "".  TAR is only done if tarFileName is a non-empty string
-#            if multiple archiveItems have the same tarFileName, the files from all sources will get put into the same tar file.
-
-
-# transferArgs is a placeholder and not yet implemented.
-
-
-
-# use syncLevel to specify when files are overwritten:
-
-# "exists"   - If the destination file is absent, do the transfer.
-# "size"     - If destination file size does not match the source, do the transfer.
-# "mtime"    - If source has a newer modififed time than the destination, do the transfer.
-# "checksum" - If source and destination contents differ, as determined by a checksum of their contents, do the transfer. 
-
-
+#
+# This is a dictionary of dictionaries.  The following keys are supported in the inner dictionary:
+#
+# source           - local (current) location of the data
+#
+# destination      - remote location to put data  (generally /gpfs/csfs1/ral/.. for the CampaignStore)
+#
+# doZip            - optional, and defaults to False
+#
+# doStaging        - optional, and defaults to False
+#
+# tarFileName      - optional and defaults to "".  TAR is only done if tar_filename is a non-empty string
+#              if multiple archiveItems have the same tar_filename,
+#
+# cdDirTar         - This must match the beginning of the source, and is not included in the path within tar files.
+#
+# skipUnderscoreFiles - optional, and defaults to False
+# sync_level       - specify when files are overwritten:
+#
+# "exists"             - If the destination file is absent, do the transfer.
+# "size"               - If destination file size does not match the source, do the transfer.
+# "mtime"              - If source has a newer modififed time than the destination, do the transfer.
+# "checksum"           - If source and destination contents differ, as determined by a checksum of their contents, do the tran
+sfer.
+#
+# expectedNumFiles - optional, only used in some circumstances
+#
+# expectedFileSize - optional, only used in some circumstances
+#
+# dataType         - Not currently used.
+#
+# dataFormat       - Not currently used.
+#
+# comment          - Not currently used.
 
 archiveItems = {
 "icing-cvs-data":
