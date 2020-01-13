@@ -178,6 +178,8 @@ transferStatusTimeout = 6*60*60
 #
 # doStaging        - optional, and defaults to False
 #
+# removeLinks      - optional. Defaults to True.  Only applies when staging data.  
+#
 # tarFileName      - optional and defaults to "".  TAR is only done if tar_filename is a non-empty string
 #              if multiple archiveItems have the same tar_filename,
 #
@@ -189,8 +191,7 @@ transferStatusTimeout = 6*60*60
 # "exists"             - If the destination file is absent, do the transfer.
 # "size"               - If destination file size does not match the source, do the transfer.
 # "mtime"              - If source has a newer modififed time than the destination, do the transfer.
-# "checksum"           - If source and destination contents differ, as determined by a checksum of their contents, do the tran
-sfer.
+# "checksum"           - If source and destination contents differ, as determined by a checksum of their contents, do the transfer.
 #
 # expectedNumFiles - optional, only used in some circumstances
 #
@@ -755,8 +756,13 @@ def prepare_transfer(ii):
             logging.debug(f"After staging, cdDirTar has been changed to {ii['cdDirTar']}")
             
         logging.debug(f"After staging, source has been changed to {ii['source']}")
-    
 
+        # default is to remove links
+        if ii.get("removeLinks", True):            
+            cmd = f"find {ii['source']} -type l -delete"
+            logging.debug(f"Removing links via: {cmd}")
+            run_cmd(cmd, exception_on_error=True)
+            
     if ii.get("doZip"):
         source_is_dir = os.path.isdir(ii['source'])
         source_is_file = os.path.isfile(ii['source'])
@@ -799,7 +805,7 @@ def prepare_transfer(ii):
 
         if ii.get("skipUnderscoreFiles"):
             cmd += " --exclude \"_*\""
-
+            
         cmd_out = run_cmd(cmd)
         if cmd_out.returncode != 0:
             return False
