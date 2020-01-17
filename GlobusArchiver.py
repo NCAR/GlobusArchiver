@@ -362,7 +362,7 @@ def run_cmd(cmd, exception_on_error=False):
                                   encoding='utf-8')
 
     if cmd_out.returncode != 0:
-        log_and_email(f'Command returned non-zero exit status: {cmd_out.returncode} - {cmd}.', logging.warning)
+        log_and_email(f'Command returned non-zero exit status: {cmd_out.returncode}\ncmd: {cmd}.', logging.warning)
         if exception_on_error:
             raise subprocess.CalledProcessError(cmd_out.returncode, cmd)
         
