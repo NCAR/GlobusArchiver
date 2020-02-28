@@ -636,7 +636,7 @@ def do_transfers(transfer):
         else:
             ii["glob"] = False
 
-        if ii.get("glob") == True and not ii.get("tarFileName"):
+        if ii.get("glob") == True:
             # can't handle both dirs and files in a glob
             file_glob = False
             dir_glob = False
@@ -650,7 +650,8 @@ def do_transfers(transfer):
                     f"glob: {ii['source']} expands to files and dirs.  Not allowed.  Skipping this archive item.",
                     logging.error)
                 continue
-
+            
+        if ii.get("glob") == True and not ii.get("tarFileName"):
             for es_ix, es in enumerate(expanded_sources):
                 # skip files that start with underscore if set to skip them
                 if ii.get("skipUnderscoreFiles") and es.startswith('_'):
@@ -764,8 +765,17 @@ def prepare_transfer(ii):
             run_cmd(cmd, exception_on_error=True)
             
     if ii.get("doZip"):
-        source_is_dir = os.path.isdir(ii['source'])
-        source_is_file = os.path.isfile(ii['source'])
+
+        # if source had a glob and is being TAR'd then it doesn't
+        # get expanded.   In that case, isdir and isfile will return
+        # false, but we need to actually expand the glob to check.
+
+        # if there is no glob, then this has no change.
+        expanded_sources = glob.glob(ii['source'])
+
+        source_is_dir = os.path.isdir(expanded_sources[0])
+        source_is_file = os.path.isfile(expanded_sources[0])       
+                        
         cmd = "yes n | gzip "  # need to pipe a 'n', because gzip is getting stuck asking "already exists; do you wish to overwrite (y or n)? "
         if source_is_dir:
             cmd += "-r "
@@ -780,8 +790,11 @@ def prepare_transfer(ii):
         if cmd_out.returncode == 1:
             return False
 
+        # if source is a single file (or glob that expands to files) we need to add .gz to the end
         if source_is_file:
             ii['source'] += ".gz"
+
+            
 
     if ii.get("tarFileName"):
         # check if input is empty directory and skip if so
