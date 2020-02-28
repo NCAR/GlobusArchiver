@@ -312,7 +312,7 @@ def start_local_server(listen=('', 4443)):
 #####################################
 p = ConfigMaster()
 p.setDefaultParams(defaultParams)
-p.init(__doc__)
+p.init(__doc__, allow_extra_parameters=True)
 
 ########################################################
 # global constants
