@@ -1,9 +1,10 @@
 #!/usr/bin/env python
-'''
+"""
 GlobusArchiver.py helps users archive data to the Campaign Store (and other Globus Endpoints)
-'''
+"""
 
 import sys
+
 if sys.version_info[0] < 3:
     raise Exception(f"Must be using Python 3.6 or later")
 if sys.version_info[0] == 3 and sys.version_info[1] < 6:
@@ -16,26 +17,18 @@ import subprocess
 import shlex
 import os
 import json
-import time
 import webbrowser
 import ssl
 import threading
 import glob
 import copy
-import enum
 import smtplib
 import email
-import pprint
 import datetime
 import socket
 import random
 import string
 import shutil
-
-##################
-# GLOBUS IMPORTS
-##################
-import globus_sdk
 
 #####################
 # CONFIG MASTER STUFF
@@ -50,6 +43,9 @@ except  ImportError:
     print(f"{os.path.basename(__file__)} needs ConfigMaster to run.")
     print(f"Please review README.md for details on how to run manage_externals")
     exit(1)
+
+# GlobusArchiver.py version info
+version_info = [1, 2]
 
 defaultParams = """
 
@@ -223,13 +219,14 @@ archiveItems = {
        }
 }
 """
+
+##################
+# GLOBUS IMPORTS
+##################
+import globus_sdk
+
 ########################################
 # Copied from https://github.com/globus/native-app-examples/blob/master/utils.py
-import logging
-import os
-import ssl
-import threading
-
 try:
     import http.client as http_client
 except ImportError:
@@ -330,6 +327,7 @@ email_critical = False
 email_errors = 0
 email_warnings = 0
 
+
 ########################################################
 # Function definitions
 ########################################################
@@ -355,17 +353,17 @@ def run_cmd(cmd, exception_on_error=False):
     # https://stackoverflow.com/questions/295459/how-do-i-use-subprocess-popen-to-connect-multiple-processes-by-pipes
     if '|' in cmd or ';' in cmd or '*' in cmd or '?' in cmd:
         cmd_out = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                  encoding='utf-8')
+                                 encoding='utf-8')
     else:
         splitcmd = shlex.split(cmd)
         cmd_out = subprocess.run(splitcmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                  encoding='utf-8')
+                                 encoding='utf-8')
 
     if cmd_out.returncode != 0:
-        log_and_email(f'Command returned non-zero exit status: {cmd_out.returncode}\ncmd: {cmd}.', logging.warning)
+        log_and_email(f'Command returned non-zero exit status: {cmd_out.returncode}\n\tcmd: {cmd}.', logging.warning)
+        log_and_email(f'\tstderr: {cmd_out.stderr}', logging.warning)
         if exception_on_error:
             raise subprocess.CalledProcessError(cmd_out.returncode, cmd)
-        
 
     return cmd_out
 
@@ -416,18 +414,19 @@ def add_tar_groups_info():
             if past_this_item and item_info["tarFileName"] == item_info2["tarFileName"]:
                 item_info["last_tar_in_group"] = False
 
+
 # I don't think we need the item_label anymore
-#def add_item_label():
+# def add_item_label():
 #    for item, item_info in p.opt["archiveItems"].items():
 #        if item_info.get("itemLabel"):
 #            item_info["item_label"] = item_info["itemLabel"]
 #        else:
 #            item_info["item_label"] = item + "_%Y%m%d"
-    # substitute date/time strings and env variables in item info
-    # TODO: do I need to do this?
+# substitute date/time strings and env variables in item info
+# TODO: do I need to do this?
 #        item_info["item_label"] = p.opt["archive_date_time"].strftime(item_info["item_label"])
 #        item_info["item_label"] = os.path.expandvars(item_info["item_label"])
-                                                                    
+
 
 def randomword(length):
     letters = string.ascii_lowercase
@@ -447,27 +446,25 @@ def handle_configuration():
     # distinction between the two for a single word.  Instead I could have used a leading underscore to distinguish. 
     p.opt["archive_date_time"] = archive_date_time
 
-    #add_item_label()
+    # add_item_label()
     add_tar_groups_info()
 
     # add random subdir to tmp dir
     p.opt["tempDir"] = os.path.join(p.opt["tempDir"], randomword(8))
 
-
     for item, item_info in p.opt["archiveItems"].items():
-        
+
         # strip trailing slash from source and destination and otherwise normalize
         item_info["source"] = os.path.normpath(item_info["source"])
         item_info["destination"] = os.path.normpath(item_info["destination"])
         if item_info.get("cdDirTar"):
             item_info["cdDirTar"] = os.path.normpath(item_info["cdDirTar"])
-                
+
     # TODO: make this pretty: https://stackoverflow.com/questions/3229419/how-to-pretty-print-nested-dictionaries
     logging.debug("After handle_configuration(), configuration looks like this:")
     logging.debug(f"{p.opt}")
 
 
-                
 def load_tokens_from_file(filepath):
     """Load a set of saved tokens."""
     logging.info(f"Attempting load of tokens from {filepath}")
@@ -578,19 +575,18 @@ def get_transfer_client():
 
 
 def do_transfers(transfer):
-
     local_ep = globus_sdk.LocalGlobusConnectPersonal()
     local_ep_id = local_ep.endpoint_id
 
     p.opt["task_label"] = p.opt["archive_date_time"].strftime(p.opt["taskLabel"])
 
-    #p.opt["task_label"] = p.opt["task_label"].decode('utf-8')
+    # p.opt["task_label"] = p.opt["task_label"].decode('utf-8')
 
     logging.info(f"Creating TransferData object with label '{p.opt['task_label']}'")
-    #logging.info(f"task_label -  {type(p.opt['task_label'])}")
-    
+    # logging.info(f"task_label -  {type(p.opt['task_label'])}")
+
     tdata = globus_sdk.TransferData(transfer, local_ep_id, p.opt["archiveEndPoint"], label=p.opt["task_label"])
-    #tdata = globus_sdk.TransferData(transfer, local_ep_id, p.opt["archiveEndPoint"])
+    # tdata = globus_sdk.TransferData(transfer, local_ep_id, p.opt["archiveEndPoint"])
 
     # keep track of any fatal errors in all items, skip the transfer if are found
     isOK = True
@@ -610,7 +606,7 @@ def do_transfers(transfer):
         ii["key"] = item
         logging.verbose(f"Storing {item} as key")
         # substitute date/time strings and env variables in item info
-        #logging.verbose(f"ii keys: {ii.keys()}")
+        # logging.verbose(f"ii keys: {ii.keys()}")
         for ii_key in ("source", "destination", "tarFileName", "cdDirTar"):
             if ii.get(ii_key):
                 logging.verbose(f"swapping {ii_key}: {ii[ii_key]}")
@@ -632,6 +628,7 @@ def do_transfers(transfer):
             if len(expanded_sources) == 0:
                 log_and_email(f"Source expands to zero targets: {ii['source']}.  SKIPPING!", logging.error)
                 continue
+            logging.info(f"{ii['source']} expanded to {len(expanded_sources)} items") 
 
         else:
             ii["glob"] = False
@@ -650,7 +647,7 @@ def do_transfers(transfer):
                     f"glob: {ii['source']} expands to files and dirs.  Not allowed.  Skipping this archive item.",
                     logging.error)
                 continue
-            
+
         if ii.get("glob") == True and not ii.get("tarFileName"):
             for es_ix, es in enumerate(expanded_sources):
                 # skip files that start with underscore if set to skip them
@@ -685,7 +682,7 @@ def do_transfers(transfer):
 def prepare_and_add_transfer(transfer, tdata, item_info):
     logging.info(f"\nTRANSFER -- {item_info['source']}")
     try:
-        
+
         if prepare_transfer(item_info):
             # TODO: check_sizes(item_info)  -- this is done during prepare, could be refactored to here?
             add_transfer_item(transfer, tdata, item_info)
@@ -693,8 +690,9 @@ def prepare_and_add_transfer(transfer, tdata, item_info):
         else:
             return False
 
-    except Exception as e: 
+    except Exception as e:
         log_and_email(f"prepare_transfer raised exception {e}", logging.error)
+
 
 # recursively creates parents to make path
 def make_globus_dir(transfer, path):
@@ -709,12 +707,11 @@ def make_globus_dir(transfer, path):
 
 
 def prepare_transfer(ii):
-
     if not ii["source"].startswith('/'):
-        log_and_email(f"{item} source: {ii['source']} must be absolute.  SKIPPING!", logging.error)
+        log_and_email(f"Item source: {ii['source']} must be absolute.  SKIPPING!", logging.error)
         return False
     if not ii["destination"].startswith('/'):
-        log_and_email(f"{item} destination: {ii['destination']} must be absolute.  SKIPPING!", logging.error)
+        log_and_email(f"item destination: {ii['destination']} must be absolute.  SKIPPING!", logging.error)
         return False
 
     # error and skip if cdDirTar is not a subset of source
@@ -744,57 +741,96 @@ def prepare_transfer(ii):
 
         # handle simple case (no cdDirTar)
         if not ii.get('cdDirTar'):
-            cmd = f"cp -r {ii['source']} {staging_dir}"
+            cmd = f"cp -r "
+
+            # default removeLinks is True
+            if ii.get("removeLinks", True):
+                cmd += "-P "
+
+            cmd += f"{ii['source']} {staging_dir}"
             run_cmd(cmd, exception_on_error=True)
             lastDir = os.path.basename(ii['source'])
             ii['source'] = os.path.join(staging_dir, lastDir)
         else:
             # we've got a cdDirTar
-            cmd = f"cp -r --parents {ii['source']} {staging_dir}"
+            cmd = f"cp -r --parents "
+
+            # default removeLinks is True
+            if ii.get("removeLinks", True):
+                cmd += "-P "
+
+            cmd += f"{ii['source']} {staging_dir}"
+
             run_cmd(cmd, exception_on_error=True)
             ii["cdDirTar"] = os.path.join(staging_dir, ii["cdDirTar"].lstrip(os.sep))
             ii['source'] = os.path.join(staging_dir, ii["source"].lstrip(os.sep))
             logging.debug(f"After staging, cdDirTar has been changed to {ii['cdDirTar']}")
-            
+
         logging.debug(f"After staging, source has been changed to {ii['source']}")
 
-        # default is to remove links
-        if ii.get("removeLinks", True):            
-            cmd = f"find {ii['source']} -type l -delete"
-            logging.debug(f"Removing links via: {cmd}")
-            run_cmd(cmd, exception_on_error=True)
-            
     if ii.get("doZip"):
 
         # if source had a glob and is being TAR'd then it doesn't
         # get expanded.   In that case, isdir and isfile will return
-        # false, but we need to actually expand the glob to check.
+        # false, but we should instead expand the glob to check for files and dirs
 
-        # if there is no glob, then this has no change.
+        # if there is no glob, then this expands to the same thing
         expanded_sources = glob.glob(ii['source'])
 
+        logging.debug(f"original source: {ii['source']}")
+        #logging.debug(f"expanded sources: {expanded_sources}")
+        logging.debug(f"Glob expanded to {len(expanded_sources)} items.  First item: {expanded_sources[0]}, last item: {expanded_sources[-1]}") 
+
+        # already checked to only allow expansion to either files or dirs, so we are safe to just check first expansion.
         source_is_dir = os.path.isdir(expanded_sources[0])
-        source_is_file = os.path.isfile(expanded_sources[0])       
-                        
+        source_is_file = os.path.isfile(expanded_sources[0])
+
         cmd = "yes n | gzip "  # need to pipe a 'n', because gzip is getting stuck asking "already exists; do you wish to overwrite (y or n)? "
+
         if source_is_dir:
             cmd += "-r "
         cmd += "-S .gz ";  # force .gz suffix in case of differing gzip version
         cmd += ii['source'];
         logging.debug(f"ZIPing file via cmd: {cmd}")
 
+        gzip_success = True
         # gzip returns an warning status if the file already exists (e.g. metars.txt and metars.txt.gz).
-        # We don't want GlobusArchiver.py to fail if this happens, so only fail if it had an error (warning or success ok)
-        
+        # We don't want GlobusArchiver.py to fail if this happens, so only fail if it had an error (warning or success ok)  (was getting inconsitent returncode, so checking stderr directly now)
         cmd_out = run_cmd(cmd)
-        if cmd_out.returncode == 1:
+        if cmd_out.returncode != 0 and "unchanged" in cmd_out.stderr:
+            logging.debug("Skipping gzip of {ii['source']} -- already gzipped.")
+            gzip_success = False
+        
+        elif cmd_out.returncode != 0 and "Argument list too long" in cmd_out.stderr:
+            # this can fail if the cmd line is too long, in which case, let's expand the glob in python and call gzip on each item separately.
+            logging.info("gzip failed - attempting globbed version")
+            for es in expanded_sources:
+
+                cmd = "yes n | gzip "  # need to pipe a 'n', because gzip is getting stuck asking "already exists; do you wish to overwrite (y or n)? "
+                if source_is_dir:
+                    cmd += "-r "
+                cmd += "-S .gz "  # force .gz suffix in case of differing gzip version
+                cmd += es
+                logging.debug(f"ZIPing file via cmd: {cmd}")
+
+                # gzip returns an warning status if the file already exists (e.g. metars.txt and metars.txt.gz).
+                # We don't want GlobusArchiver.py to fail if this happens, so only fail if it had an error (warning or success ok)
+
+                cmd_out = run_cmd(cmd)
+                if cmd_out.returncode != 0 and "unchanged" not in cmd_out.stderr:
+                    logging.debug("Skipping gz of {es} - already gzipped.")
+                    gzip_success = False
+                    
+                
+        elif cmd_out.returncode != 0:
+            logging.warn("gzip failed.  Abandoning this archive item.")
+            gzip_success = Fals
             return False
+            
 
         # if source is a single file (or glob that expands to files) we need to add .gz to the end
-        if source_is_file:
+        if source_is_file and gzip_success:
             ii['source'] += ".gz"
-
-            
 
     if ii.get("tarFileName"):
         # check if input is empty directory and skip if so
@@ -805,6 +841,7 @@ def prepare_transfer(ii):
         tar_dir = os.path.join(p.opt["tempDir"], f"Item-{ii['tar_group_name']}-Tar")
         safe_mkdirs(tar_dir)
         tar_path = os.path.join(tar_dir, ii["tarFileName"])
+
         # if cdDirTar is set, cd into that directory and create the tarball using the
         # relative path to source from cdDirTar. If source and cdDirTar are the same, use *
         if ii.get("cdDirTar"):
@@ -818,10 +855,49 @@ def prepare_transfer(ii):
 
         if ii.get("skipUnderscoreFiles"):
             cmd += " --exclude \"_*\""
-            
         cmd_out = run_cmd(cmd)
-        if cmd_out.returncode != 0:
-            return False
+
+        # If this failed, it's probably because the glob expanded into too long of a cmd line, so
+        # we need to handle each file individually.  This is slower than letting tar handle multiple
+        # files at once, so that is why we first attempt letting the shell expand the glob.
+        if cmd_out.returncode != 0 and "Argument list too long" in cmd_out.stderr:
+            logging.info("tar failed - attempting globbed version")
+            source = ii['source']
+
+            if ii.get("cdDirTar"):
+                relative_path = ii['source'].replace(ii['cdDirTar'], '').lstrip(os.path.sep)
+                if relative_path == '':
+                    relative_path = '*'
+                os.chdir(ii.get("cdDirTar"))
+                source = relative_path
+
+            # if there is no glob, then this expands to the same thing, but we are probably not here if there is no glob
+            logging.debug("attempting to glob: {source}")
+            expanded_sources = glob.glob(source)
+            logging.debug(f"Glob expanded to {len(expanded_sources)} items.")
+            try:
+                logging.debug(f"First item: {expanded_sources[0]}, last item: {expanded_sources[-1]}")
+            except:
+                logging.warn(f"no items in expanded_source")
+            for es in expanded_sources:
+
+                # if cdDirTar is set, cd into that directory and create the tarball using the
+                # relative path to source from cdDirTar. If source and cdDirTar are the same, use *
+                if ii.get("cdDirTar"):
+                    cmd = f"cd {ii['cdDirTar']}; tar rf {tar_path} "
+                    relative_path = es.replace(ii['cdDirTar'], '').lstrip(os.path.sep)
+                    if relative_path == '':
+                        relative_path = '*'
+                        cmd += relative_path
+                else:
+                    cmd = f"tar rf {tar_path} {es}"
+
+                if ii.get("skipUnderscoreFiles"):
+                    cmd += " --exclude \"_*\""
+
+                cmd_out = run_cmd(cmd)
+                if cmd_out.returncode != 0:
+                    return False
 
         # created the tar file, so now set the source to the tar file 
         ii["source"] = os.path.join(tar_dir, ii["tarFileName"])
@@ -832,7 +908,7 @@ def prepare_transfer(ii):
         if cmd_out.returncode != 0:
             return False
 
-        #logging.verbose(f"got output: {cmd_out.stdout}")
+        # logging.verbose(f"got output: {cmd_out.stdout}")
         ii["num_files"] = int(cmd_out.stdout)
     else:
         # if source is a directory, list the number of files inside
@@ -895,7 +971,9 @@ def log_and_email(msg_str, logfunc):
 
 
 def add_transfer_item(transfer, tdata, ii):
-    logging.verbose(f"Entering transfer_item {tdata}, {ii}")
+    logging.debug("Entering add_transfer_item")
+    logging.debug(f"Adding: {ii}")
+    logging.verbose(f"tdata = {tdata}")
     # get leaf dir from source, and add it to destination
     # if cdDir is set and not tarring data, set leaf
     # to source with cdDir stripped off to get any subdirectories
@@ -913,8 +991,8 @@ def add_transfer_item(transfer, tdata, ii):
     #    destination = ii['destination']
     logging.debug(f"Using destination: {destination}")
 
-    #make_globus_dir(transfer, destination)
-    
+    # make_globus_dir(transfer, destination)
+
     # Check if destination_dir already exists, and skip if so
     # TODO: add support to overwrite?
     # try:
@@ -944,11 +1022,12 @@ def add_transfer_item(transfer, tdata, ii):
     #    print(f"Local file: {entry['name']}")
 
     logging.debug(f"source: {ii['source']}  isdir: {os.path.isdir(ii['source'])} tfn: {ii.get('tarFileName')}")
-    if os.path.isdir(ii['source']): # and not ii.get("tarFileName"):
+    if os.path.isdir(ii['source']):  # and not ii.get("tarFileName"):
         tdata.add_item(ii['source'], destination, recursive=True, sync_level=ii.get("syncLevel"))
     else:
         tdata.add_item(ii['source'], destination, sync_level=ii.get("syncLevel"))
-    logging.debug(f"Adding TransferData item: {ii['source']} -> {destination}") 
+    logging.debug(f"Adding TransferData item: {ii['source']} -> {destination}")
+
 
 def check_task_for_success(transfer, task_id):
     logging.debug("Waiting for transfer to complete...")
@@ -956,16 +1035,15 @@ def check_task_for_success(transfer, task_id):
     timeoutFull = p.opt['transferStatusTimeout']
 
     # timeoutInterval - If there is an error, it will take this long before we give up.
-    timeoutInterval = 1*60  # seconds
+    timeoutInterval = 1 * 60  # seconds
 
-    #pollingInterval - Once the task has completed, it will take up to this long before we realize it.
+    # pollingInterval - Once the task has completed, it will take up to this long before we realize it.
     #                - You also get several lines in your log at this interval while your task is in progress.
-    pollingInterval = 1*60  # seconds
+    pollingInterval = 1 * 60  # seconds
 
     # condition intervals
     pollingInterval = min(timeoutInterval, pollingInterval)
     timeoutInterval = min(timeoutInterval, timeoutFull)
-
 
     timeoutCounter = 0
 
@@ -975,24 +1053,26 @@ def check_task_for_success(transfer, task_id):
     # then cancel the transfer to stop it from retrying
     hasErrors = False
 
-    while not hasErrors and timeoutCounter < timeoutFull and not transfer.task_wait(task_id, timeout=timeoutInterval, polling_interval=pollingInterval):
+    while not hasErrors and timeoutCounter < timeoutFull and not transfer.task_wait(task_id, timeout=timeoutInterval,
+                                                                                    polling_interval=pollingInterval):
         hasErrors = False
 
         # get any errors in the event list so we can go ahead and give up.  Log all errors, but only email the first one.
         for event in transfer.task_event_list(task_id, filter=["is_error:1"]):
             if not hasErrors:
-                log_and_email(f"Task Event indicates an error: {event['details']}.\nTask has been cancelled.", logging.critical)
+                log_and_email(f"Task Event indicates an error: {event['details']}.\nTask has been cancelled.",
+                              logging.critical)
                 hasErrors = True
             else:
-                logging.critical(f"Task Event indicates an error: {event['details']}.\nTask has been cancelled.", logging.critical)                
+                logging.critical(f"Task Event indicates an error: {event['details']}.\nTask has been cancelled.",
+                                 logging.critical)
 
-            
-        # check all events for in progress or error status
-        #for event in transfer.task_event_list(task_id, filter=["is_error:1"]):
+                # check all events for in progress or error status
+        # for event in transfer.task_event_list(task_id, filter=["is_error:1"]):
         #    print(f"retrieved event: {event}")
         #    if event['is_error']:
         #        hasErrors = True
-        #if True in [event['is_error'] for event in transfer.task_event_list(task_id)]:
+        # if True in [event['is_error'] for event in transfer.task_event_list(task_id)]:
         #    hasErrors = True
 
         timeoutCounter += timeoutInterval
@@ -1005,6 +1085,7 @@ def check_task_for_success(transfer, task_id):
         log_and_email(f"Transfer timed out after {timeoutFull} seconds and was cancelled.", logging.critical)
     else:
         log_and_email(f"Transfer completed successfully.", logging.info)
+
 
 def submit_transfer_task(transfer, tdata):
     try:
@@ -1021,6 +1102,7 @@ def submit_transfer_task(transfer, tdata):
                   logging.info)
 
     check_task_for_success(transfer, task['task_id'])
+
 
 def prepare_email_msg():
     email_msg['From'] = email.headerregistry.Address(*p.opt["fromEmail"])
@@ -1044,9 +1126,9 @@ def set_email_msg_subject():
     elif email_errors > 0 and email_warnings > 0:
         err_str += f'{email_errors} ERRORS & {email_warnings} WARNINGS'
     elif email_errors:
-            err_str += f'{email_errors} ERRORS'
+        err_str += f'{email_errors} ERRORS'
     elif email_warnings:
-            err_str += f'{email_warnings} WARNINGS'
+        err_str += f'{email_warnings} WARNINGS'
 
     subject_format = {}
     subject_format['errors'] = err_str
@@ -1057,6 +1139,7 @@ def set_email_msg_subject():
     subject = p.opt['emailSubjectFormat'].format(**subject_format)
     email_msg['Subject'] = subject
 
+
 def send_email_msg():
     logging.info(f"Sending email to {email_msg['To']}")
     logging.debug(f"BODY: {email_msg.get_body()}")
@@ -1066,14 +1149,13 @@ def send_email_msg():
 
 
 def main():
-    logging.info(f"Starting {os.path.basename(__file__)}")
-
+    logging.info(f"Starting {os.path.basename(__file__)} v{version_info[0]}.{version_info[1]}")
     if len(sys.argv) == 1:
         logging.info('You must supply command line arguments to run GlobusArchiver.py')
         p.parser.print_help()
         exit(0)
 
-    #pp = pprint.PrettyPrinter()
+    # pp = pprint.PrettyPrinter()
     logging.info(f"Read this configuration:")
     for line in p.getParamsString().splitlines():
         # logging.info(pp.pformat(line))
@@ -1089,8 +1171,6 @@ def main():
     transfer_client = get_transfer_client()
     do_transfers(transfer_client)
 
-    
-        
     set_email_msg_subject()
     send_email_msg()
 
