@@ -91,7 +91,7 @@ globus endpoint activate --delegate-proxy /glade/u/home/prestop/.prestop-globus.
 
 You can confirm the 30 day expiration of your endpoint with this command:
 ```
-globus endpoint activate 6b5ab960-7bbf-11e8-9450-0a6d4e044368`
+globus endpoint activate 6b5ab960-7bbf-11e8-9450-0a6d4e044368
 ```
 Now that you have a certificate you can automate the activation via a line in your crontab.  You can run this on any machine that has globus installed:
 ```
