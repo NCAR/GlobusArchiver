@@ -824,7 +824,7 @@ def prepare_transfer(ii):
                 
         elif cmd_out.returncode != 0:
             logging.warn("gzip failed.  Abandoning this archive item.")
-            gzip_success = Fals
+            gzip_success = False
             return False
             
 
