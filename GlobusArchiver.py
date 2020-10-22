@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 GlobusArchiver.py helps users archive data to the Campaign Store (and other Globus Endpoints)
 """
