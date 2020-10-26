@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 GlobusArchiver.py helps users archive data to the Campaign Store (and other Globus Endpoints)
 """
@@ -824,7 +824,7 @@ def prepare_transfer(ii):
                 
         elif cmd_out.returncode != 0:
             logging.warn("gzip failed.  Abandoning this archive item.")
-            gzip_success = Fals
+            gzip_success = False
             return False
             
 
