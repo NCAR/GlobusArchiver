@@ -796,6 +796,11 @@ def prepare_transfer(ii):
 
         logging.debug(f"After staging, source has been changed to {ii['source']}")
 
+        # sometimes "cp -P" doesn't seem to be working to remove links, so let's remove them again, just in case
+        if ii.get("removeLinks", True):
+            cmd = f"find {ii['source']} -depth -type l -delete"
+            run_cmd(cmd, exception_on_error=True)
+
     if ii.get("doZip"):
 
         # if source had a glob and is being TAR'd then it doesn't
