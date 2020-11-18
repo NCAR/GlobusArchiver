@@ -44,8 +44,18 @@ except  ImportError:
     print(f"Please review README.md for details on how to run manage_externals")
     exit(1)
 
+
+
 # GlobusArchiver.py version info
-version_info = [1, 2]
+'''
+Version 1.3
+
+ChangeLog
+1.3 - Added whenEmpty configuration options
+'''
+
+version_info = (1, 3)
+version = ".".join(map(str, version_info))
 
 defaultParams = """
 
@@ -180,6 +190,10 @@ transferStatusTimeout = 6*60*60
 #              if multiple archiveItems have the same tar_filename,
 #
 # cdDirTar         - This must match the beginning of the source, and is not included in the path within tar files.
+#
+# whenEmpty        - If a source has zero files at level do we log this:
+#                      - "WARN", "ERROR", "INFO", "DEBUG", "CRITICAL" 
+#                      - default - "ERROR"
 #
 # skipUnderscoreFiles - optional, and defaults to False
 # sync_level       - specify when files are overwritten:
@@ -331,6 +345,20 @@ email_warnings = 0
 ########################################################
 # Function definitions
 ########################################################
+
+def stringToLogFunction(s):
+    s = s.upper()
+    if s == "WARN" or s == "WARNING":
+        return logging.warning
+    if s == "ERROR":
+        return logging.error
+    if s == "DEBUG":
+        return logging.debug
+    if s == "INFO":
+        return logging.info
+    if s == "CRITICAL":
+        return logging.critical
+
 def safe_mkdirs(d):
     logging.info(f"making dir: {d}")
     if not os.path.exists(d):
@@ -626,7 +654,7 @@ def do_transfers(transfer):
             ii["glob"] = True
 
             if len(expanded_sources) == 0:
-                log_and_email(f"Source expands to zero targets: {ii['source']}.  SKIPPING!", logging.error)
+                log_and_email(f"Source expands to zero targets: {ii['source']}.  SKIPPING!", stringToLogFunction(ii.get("whenEmpty","ERROR")))
                 continue
             logging.info(f"{ii['source']} expanded to {len(expanded_sources)} items") 
 
@@ -666,7 +694,7 @@ def do_transfers(transfer):
 
         else:
             if not ii["glob"] and not os.path.exists(ii["source"]):
-                log_and_email(f"{ii['source']} does not exist. Skipping this archive item.", logging.error)
+                log_and_email(f"{ii['source']} does not exist. Skipping this archive item.", stringToLogFunction(ii.get("whenEmpty","ERROR")))
                 continue
 
             # setting last glob to True for tarring with a glob so expected file size/number is checked
